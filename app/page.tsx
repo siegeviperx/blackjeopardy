@@ -479,8 +479,12 @@ export default function Page() {
                 </p>
                 <div className="mt-2">
                   <div className="bg-white p-2 rounded-lg inline-block">
-                    <div className="w-24 h-24 bg-gray-800 flex items-center justify-center text-white text-xs font-mono">
-                      QR: {gameState.gameCode}
+                    <div className="w-24 h-24 bg-white flex items-center justify-center">
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=96x96&data=${encodeURIComponent(gameState.gameCode)}`}
+                        alt={`QR Code for game ${gameState.gameCode}`}
+                        className="w-full h-full"
+                      />
                     </div>
                   </div>
                   <p className="text-xs text-amber-200 mt-1">Scan to join game</p>
@@ -499,7 +503,7 @@ export default function Page() {
           {/* Teams and Scores */}
           <div className="mb-6">
             <h2 className="text-xl font-bold mb-4">Teams & Scores</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 text-center">
               {gameState.teams.map((team) => (
                 <Card key={team} className="bg-amber-100/90 backdrop-blur-sm border-amber-200">
                   <CardContent className="p-3 text-center">
