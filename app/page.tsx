@@ -481,7 +481,7 @@ export default function Page() {
                   <div className="bg-white p-2 rounded-lg inline-block">
                     <div className="w-24 h-24 bg-white flex items-center justify-center">
                       <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=96x96&data=${encodeURIComponent(gameState.gameCode)}`}
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=96x96&data=${encodeURIComponent(`${window.location.origin}/?join=${gameState.gameCode}`)}`}
                         alt={`QR Code for game ${gameState.gameCode}`}
                         className="w-full h-full"
                       />
