@@ -437,7 +437,7 @@ export default function Page() {
             <Button
               onClick={() => setGameState((prev) => ({ ...prev, currentView: "home" }))}
               variant="outline"
-              className="border-white/30 text-white hover:bg-white/20"
+              className="border-amber-200 text-amber-900 bg-amber-100 hover:bg-amber-200 font-semibold"
             >
               End Game
             </Button>
@@ -494,10 +494,10 @@ export default function Page() {
 
           {/* Current Question */}
           {gameState.currentQuestion && (
-            <Card className="mt-6 bg-amber-100/90 backdrop-blur-sm border-amber-200 text-amber-900">
-              <CardHeader>
+            <Card className="mt-6 bg-amber-100/95 backdrop-blur-sm border-2 border-amber-300 text-amber-900 shadow-lg">
+              <CardHeader className="bg-amber-200/50">
                 <div className="flex justify-between items-center">
-                  <CardTitle className="text-xl">
+                  <CardTitle className="text-xl font-bold">
                     {gameState.currentQuestion.category.toUpperCase()} - ${gameState.currentQuestion.value}
                   </CardTitle>
                   {gameState.currentQuestion.isDoubleJeopardy && (
@@ -505,11 +505,17 @@ export default function Page() {
                   )}
                 </div>
               </CardHeader>
-              <CardContent>
-                <p className="text-lg mb-4">{gameState.currentQuestion.question}</p>
+              <CardContent className="p-6">
+                <div className="bg-white/80 p-4 rounded-lg mb-4 border border-amber-300">
+                  <p className="text-lg font-medium text-amber-900">{gameState.currentQuestion.question}</p>
+                </div>
                 <details className="mb-4">
-                  <summary className="cursor-pointer text-amber-700 hover:text-amber-600">Show Answer</summary>
-                  <p className="mt-2 text-amber-800 font-semibold">{gameState.currentQuestion.answer}</p>
+                  <summary className="cursor-pointer text-amber-700 hover:text-amber-600 font-semibold">
+                    Show Answer
+                  </summary>
+                  <div className="mt-2 bg-green-100 p-3 rounded-lg border border-green-300">
+                    <p className="text-green-800 font-semibold">{gameState.currentQuestion.answer}</p>
+                  </div>
                 </details>
 
                 {gameState.buzzedTeam ? (
