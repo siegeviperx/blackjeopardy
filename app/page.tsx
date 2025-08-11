@@ -211,10 +211,16 @@ export default function Page() {
   }
 
   const selectQuestion = (category: string, value: number) => {
+    console.log("selectQuestion called:", category, value) // Added debugging
     const key = `${category}-${value}`
     const questionData = gameState.gameBoard[key]
 
-    if (!questionData || questionData.used) return
+    console.log("questionData:", questionData) // Added debugging
+
+    if (!questionData || questionData.used) {
+      console.log("Question not found or already used") // Added debugging
+      return
+    }
 
     const updatedBoard = {
       ...gameState.gameBoard,
@@ -239,9 +245,10 @@ export default function Page() {
       updatedState.doubleJeopardyUsed = [...gameState.doubleJeopardyUsed, key]
     }
 
+    console.log("Setting updated state:", updatedState.currentQuestion) // Added debugging
     setGameState(updatedState)
-    saveGameState(gameState.gameCode, updatedState)
-    syncGameState(gameState.gameCode, updatedState)
+    saveGameState(updatedState.gameCode, updatedState)
+    syncGameState(updatedState.gameCode, updatedState)
   }
 
   const buzz = (team: string) => {
