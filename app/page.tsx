@@ -102,10 +102,20 @@ export default function Page() {
           }
         } else {
           const randomQ = getRandomQuestion(category as keyof typeof questions, value)
-          board[key] = {
-            question: randomQ.question,
-            answer: randomQ.answer,
-            used: false,
+          if (randomQ) {
+            board[key] = {
+              question: randomQ.question,
+              answer: randomQ.answer,
+              used: false,
+            }
+          } else {
+            // Fallback question if getRandomQuestion fails
+            board[key] = {
+              question: `Sample question for ${category} - ${value}`,
+              answer: `Sample answer for ${category} - ${value}`,
+              used: false,
+            }
+            console.warn(`Failed to load question for ${category}-${value}, using fallback`)
           }
         }
       })
