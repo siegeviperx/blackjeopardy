@@ -115,40 +115,73 @@ export default function Page() {
   }
 
   const startHostGame = () => {
-    const code = generateGameCode()
-    const board = initializeGameBoard()
-    const newGameState = {
-      ...gameState,
-      gameCode: code,
-      currentView: "host" as const,
-      gameBoard: board,
-      scores: {},
-      teams: [],
-      usedQuestions: new Set<string>(),
-      doubleJeopardyUsed: [],
+    try {
+      const code = generateGameCode()
+      const board = initializeGameBoard()
+      const newGameState = {
+        ...gameState,
+        gameCode: code,
+        currentView: "host" as const,
+        gameBoard: board,
+        scores: {},
+        teams: [],
+        usedQuestions: new Set<string>(),
+        doubleJeopardyUsed: [],
+      }
+      setGameState(newGameState)
+
+      // Try to save state, but don't let it block the UI
+      try {
+        saveGameState(code, newGameState)
+        syncGameState(code, newGameState)
+      } catch (error) {
+        console.warn("Failed to save game state:", error)
+      }
+    } catch (error) {
+      console.error("Failed to start host game:", error)
+      // Fallback: at least switch to host view with basic setup
+      setGameState((prev) => ({
+        ...prev,
+        gameCode: "DEMO" + Math.random().toString(36).substr(2, 3).toUpperCase(),
+        currentView: "host",
+        gameBoard: {},
+        scores: {},
+        teams: [],
+      }))
     }
-    setGameState(newGameState)
-    saveGameState(code, newGameState)
-    syncGameState(code, newGameState)
   }
 
   const joinGame = () => {
-    if (!joinCode.trim()) return
+    if (!joinCode.trim()) {
+      alert("Please enter a game code")
+      return
+    }
 
-    const savedState = loadGameState(joinCode)
-    if (savedState) {
-      setGameState({
-        ...savedState,
-        currentView: "join",
-      })
+    try {
+      const savedState = loadGameState(joinCode)
+      if (savedState) {
+        setGameState({
+          ...savedState,
+          currentView: "join",
+        })
 
-      subscribeToGameUpdates(joinCode, (updatedState) => {
-        setGameState((prev) => ({
-          ...prev,
-          ...updatedState,
-          currentView: prev.currentView,
-        }))
-      })
+        try {
+          subscribeToGameUpdates(joinCode, (updatedState) => {
+            setGameState((prev) => ({
+              ...prev,
+              ...updatedState,
+              currentView: prev.currentView,
+            }))
+          })
+        } catch (error) {
+          console.warn("Failed to subscribe to updates:", error)
+        }
+      } else {
+        alert("Game code not found. Please check the code and try again.")
+      }
+    } catch (error) {
+      console.error("Failed to join game:", error)
+      alert("Failed to join game. Please try again.")
     }
   }
 
