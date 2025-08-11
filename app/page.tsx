@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import type React from "react"
+
+import { useState, useEffect } from "react"
 
 // Simple questions data
 const questions = {
@@ -239,7 +241,7 @@ interface Team {
 }
 
 interface GameState {
-  currentView: "home" | "host" | "join" | "admin"
+  currentView: "home" | "host" | "join" | "admin" | "adminLogin"
   gameId: string
   currentQuestion: any
   usedQuestions: Set<string>
@@ -253,10 +255,106 @@ interface GameState {
     score: number
     buzzedIn: boolean
   } | null
+  isAdminAuthenticated: boolean
+}
+
+function AdminLogin({ onAuthenticate }: { onAuthenticate: () => void }) {
+  const [pin, setPin] = useState("")
+  const [error, setError] = useState("")
+  const ADMIN_PIN = "2024" // Simple PIN - in production, use proper authentication
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (pin === ADMIN_PIN) {
+      localStorage.setItem("adminAuthenticated", "true")
+      onAuthenticate()
+      setError("")
+    } else {
+      setError("Invalid PIN. Please try again.")
+      setPin("")
+    }
+  }
+
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center"
+      style={{
+        background: "linear-gradient(135deg, #92400e 0%, #b45309 50%, #92400e 100%)",
+        color: "#fef3c7",
+      }}
+    >
+      <div
+        className="rounded-lg p-8 max-w-md w-full mx-4 shadow-xl"
+        style={{
+          backgroundColor: "rgba(254, 243, 199, 0.95)",
+          border: "2px solid #fde68a",
+        }}
+      >
+        <div className="text-center mb-6">
+          <div className="flex justify-center mb-4">
+            <img
+              src="/melanated-wellness-logo-horizontal.jpg"
+              alt="Melanated Wellness LLC"
+              className="h-12 object-contain"
+            />
+          </div>
+          <h2 className="text-2xl font-bold mb-2" style={{ color: "#92400e" }}>
+            Admin Access Required
+          </h2>
+          <p style={{ color: "#a16207" }}>Enter PIN to access admin panel</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <input
+              type="password"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              placeholder="Enter Admin PIN"
+              className="w-full p-3 rounded-lg text-center text-xl tracking-widest"
+              style={{
+                backgroundColor: "#fffbeb",
+                border: "2px solid #fde68a",
+                color: "#92400e",
+              }}
+              maxLength={4}
+              autoFocus
+            />
+          </div>
+
+          {error && (
+            <p className="text-center text-sm" style={{ color: "#dc2626" }}>
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            className="w-full py-3 rounded-lg font-bold text-lg"
+            style={{
+              backgroundColor: "#92400e",
+              color: "#fffbeb",
+            }}
+          >
+            Access Admin Panel
+          </button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <button onClick={() => window.location.reload()} className="text-sm underline" style={{ color: "#a16207" }}>
+            ← Back to Game
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // Home Page Component
-function HomePage({ onNavigate }: { onNavigate: (view: string) => void }) {
+function HomePage({
+  onNavigate,
+  isAdminAuthenticated,
+}: { onNavigate: (view: string) => void; isAdminAuthenticated: boolean }) {
   return (
     <div
       className="min-h-screen"
@@ -289,7 +387,7 @@ function HomePage({ onNavigate }: { onNavigate: (view: string) => void }) {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 md:gap-8 max-w-6xl mx-auto">
+        <div className={`grid gap-6 max-w-4xl mx-auto ${isAdminAuthenticated ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
           <div
             className="rounded-lg p-6 text-center shadow-lg hover:shadow-xl transition-all cursor-pointer"
             style={{
@@ -305,21 +403,21 @@ function HomePage({ onNavigate }: { onNavigate: (view: string) => void }) {
                   backgroundColor: "rgba(146, 64, 14, 0.2)",
                 }}
               >
-                <span className="text-2xl">👥</span>
+                <span className="text-2xl">🎯</span>
               </div>
               <h2 className="text-2xl font-bold mb-2" style={{ color: "#92400e" }}>
                 Host Game
               </h2>
-              <p style={{ color: "#a16207" }}>Control the game, manage teams, and track scores</p>
+              <p style={{ color: "#a16207" }}>Start a new game session</p>
             </div>
             <button
               className="w-full font-bold py-2 sm:py-3 px-4 sm:px-6 rounded-lg text-base sm:text-lg shadow-md transition-colors"
               style={{
-                backgroundColor: "#92400e",
+                backgroundColor: "#a16207",
                 color: "#fffbeb",
               }}
             >
-              Start as Host
+              Start Hosting
             </button>
           </div>
 
@@ -338,12 +436,12 @@ function HomePage({ onNavigate }: { onNavigate: (view: string) => void }) {
                   backgroundColor: "rgba(146, 64, 14, 0.2)",
                 }}
               >
-                <span className="text-2xl">🎮</span>
+                <span className="text-2xl">📱</span>
               </div>
               <h2 className="text-2xl font-bold mb-2" style={{ color: "#92400e" }}>
                 Join Game
               </h2>
-              <p style={{ color: "#a16207" }}>Enter game code to play</p>
+              <p style={{ color: "#a16207" }}>Enter a game code to play</p>
             </div>
             <button
               className="w-full font-bold py-2 sm:py-3 px-4 sm:px-6 rounded-lg text-base sm:text-lg shadow-md transition-colors"
@@ -356,39 +454,60 @@ function HomePage({ onNavigate }: { onNavigate: (view: string) => void }) {
             </button>
           </div>
 
-          <div
-            className="rounded-lg p-6 text-center shadow-lg hover:shadow-xl transition-all cursor-pointer"
-            style={{
-              backgroundColor: "rgba(254, 243, 199, 0.9)",
-              border: "2px solid #fde68a",
-            }}
-            onClick={() => onNavigate("admin")}
-          >
-            <div className="mb-4">
-              <div
-                className="w-16 h-16 rounded-full mx-auto flex items-center justify-center mb-4"
+          {isAdminAuthenticated && (
+            <div
+              className="rounded-lg p-6 text-center shadow-lg hover:shadow-xl transition-all cursor-pointer"
+              style={{
+                backgroundColor: "rgba(254, 243, 199, 0.9)",
+                border: "2px solid #fde68a",
+              }}
+              onClick={() => onNavigate("admin")}
+            >
+              <div className="mb-4">
+                <div
+                  className="w-16 h-16 rounded-full mx-auto flex items-center justify-center mb-4"
+                  style={{
+                    backgroundColor: "rgba(146, 64, 14, 0.2)",
+                  }}
+                >
+                  <span className="text-2xl">⚙️</span>
+                </div>
+                <h2 className="text-2xl font-bold mb-2" style={{ color: "#92400e" }}>
+                  Admin Panel
+                </h2>
+                <p style={{ color: "#a16207" }}>Edit and manage game questions</p>
+              </div>
+              <button
+                className="w-full font-bold py-2 sm:py-3 px-4 sm:px-6 rounded-lg text-base sm:text-lg shadow-md transition-colors"
                 style={{
-                  backgroundColor: "rgba(146, 64, 14, 0.2)",
+                  backgroundColor: "#b45309",
+                  color: "#fffbeb",
                 }}
               >
-                <span className="text-2xl">⚙️</span>
-              </div>
-              <h2 className="text-2xl font-bold mb-2" style={{ color: "#92400e" }}>
-                Admin Panel
-              </h2>
-              <p style={{ color: "#a16207" }}>Edit and manage game questions</p>
+                Manage Questions
+              </button>
             </div>
+          )}
+        </div>
+
+        {isAdminAuthenticated && (
+          <div className="mt-8 text-center">
             <button
-              className="w-full font-bold py-2 sm:py-3 px-4 sm:px-6 rounded-lg text-base sm:text-lg shadow-md transition-colors"
+              onClick={() => {
+                localStorage.removeItem("adminAuthenticated")
+                window.location.reload()
+              }}
+              className="text-sm px-4 py-2 rounded"
               style={{
-                backgroundColor: "#b45309",
-                color: "#fffbeb",
+                backgroundColor: "rgba(254, 243, 199, 0.2)",
+                color: "#fde68a",
+                border: "1px solid #fde68a",
               }}
             >
-              Manage Questions
+              Admin Logout
             </button>
           </div>
-        </div>
+        )}
 
         <div className="mt-16 text-center">
           <div
@@ -398,8 +517,8 @@ function HomePage({ onNavigate }: { onNavigate: (view: string) => void }) {
               color: "#fef3c7",
             }}
           >
-            <span className="text-xl">📱</span>
-            <span>Enter game code to join instantly!</span>
+            <span>🎮</span>
+            <span>Ready to test your knowledge?</span>
           </div>
         </div>
       </div>
@@ -1189,6 +1308,11 @@ function AdminPage({ onNavigate }: { onNavigate: (view: string) => void }) {
   const categories = Object.keys(questions)
   const values = [200, 400, 600, 800, 1000]
 
+  const handleLogout = () => {
+    localStorage.removeItem("adminAuthenticated")
+    onNavigate("home")
+  }
+
   const startEditing = (
     category: string,
     value: number,
@@ -1285,17 +1409,30 @@ Answer: ${addingQuestion.answer}`)
             QUESTION ADMIN
           </h1>
           <p style={{ color: "#fde68a" }}>Manage Black Jeopardy Questions</p>
-          <button
-            onClick={() => onNavigate("home")}
-            className="mt-4 px-4 py-2 rounded"
-            style={{
-              backgroundColor: "rgba(254, 243, 199, 0.2)",
-              color: "#fde68a",
-              border: "1px solid #fde68a",
-            }}
-          >
-            ← Back to Home
-          </button>
+          <div className="flex justify-center gap-4 mt-4">
+            <button
+              onClick={() => onNavigate("home")}
+              className="px-4 py-2 rounded"
+              style={{
+                backgroundColor: "rgba(254, 243, 199, 0.2)",
+                color: "#fde68a",
+                border: "1px solid #fde68a",
+              }}
+            >
+              ← Back to Home
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 rounded"
+              style={{
+                backgroundColor: "rgba(220, 38, 38, 0.2)",
+                color: "#fca5a5",
+                border: "1px solid #fca5a5",
+              }}
+            >
+              🔒 Logout
+            </button>
+          </div>
         </div>
 
         {/* Tab Navigation */}
@@ -1723,14 +1860,32 @@ export default function BlackJeopardyApp() {
     doubleJeopardyPositions: generateDoubleJeopardyPositions(),
     usedDoubleJeopardyQuestions: new Set(),
     playerInfo: null,
+    isAdminAuthenticated: localStorage.getItem("adminAuthenticated") === "true",
   })
+
+  useEffect(() => {
+    const isAuthenticated = localStorage.getItem("adminAuthenticated") === "true"
+    setGameState((prev) => ({ ...prev, isAdminAuthenticated: isAuthenticated }))
+  }, [])
 
   const updateGameState = (updates: Partial<GameState>) => {
     setGameState((prev) => ({ ...prev, ...updates }))
   }
 
   const navigateTo = (view: string) => {
+    if (view === "admin" && !gameState.isAdminAuthenticated) {
+      setGameState((prev) => ({ ...prev, currentView: "adminLogin" as any }))
+      return
+    }
     setGameState((prev) => ({ ...prev, currentView: view as any }))
+  }
+
+  const handleAdminAuthentication = () => {
+    setGameState((prev) => ({
+      ...prev,
+      isAdminAuthenticated: true,
+      currentView: "admin",
+    }))
   }
 
   // Render current view
@@ -1741,7 +1896,9 @@ export default function BlackJeopardyApp() {
       return <JoinPage gameState={gameState} updateGameState={updateGameState} onNavigate={navigateTo} />
     case "admin":
       return <AdminPage onNavigate={navigateTo} />
+    case "adminLogin" as any:
+      return <AdminLogin onAuthenticate={handleAdminAuthentication} />
     default:
-      return <HomePage onNavigate={navigateTo} />
+      return <HomePage onNavigate={navigateTo} isAdminAuthenticated={gameState.isAdminAuthenticated} />
   }
 }
