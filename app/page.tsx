@@ -11,8 +11,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { type questions, doubleJeopardyQuestions, getRandomQuestion } from "@/lib/questions"
-import { generateGameCode, saveGameState, loadGameState } from "@/lib/game-storage"
-import { syncGameState, subscribeToGameUpdates } from "@/lib/game-sync"
 import Image from "next/image"
 
 const ADMIN_PIN = "2424"
@@ -126,7 +124,7 @@ export default function Page() {
 
   const startHostGame = () => {
     try {
-      const code = generateGameCode()
+      const code = Math.random().toString(36).substr(2, 6).toUpperCase()
       const board = initializeGameBoard()
       const newGameState = {
         ...gameState,
@@ -140,23 +138,25 @@ export default function Page() {
       }
       setGameState(newGameState)
 
-      // Try to save state, but don't let it block the UI
-      try {
-        saveGameState(code, newGameState)
-        syncGameState(code, newGameState)
-      } catch (error) {
-        console.warn("Failed to save game state:", error)
+      if (typeof window !== "undefined" && window.localStorage) {
+        try {
+          localStorage.setItem(`game_${code}`, JSON.stringify(newGameState))
+        } catch (error) {
+          console.warn("Failed to save game state:", error)
+        }
       }
     } catch (error) {
       console.error("Failed to start host game:", error)
-      // Fallback: at least switch to host view with basic setup
+      const fallbackCode = "GAME" + Math.floor(Math.random() * 1000)
       setGameState((prev) => ({
         ...prev,
-        gameCode: "DEMO" + Math.random().toString(36).substr(2, 3).toUpperCase(),
+        gameCode: fallbackCode,
         currentView: "host",
-        gameBoard: {},
+        gameBoard: initializeGameBoard(),
         scores: {},
         teams: [],
+        usedQuestions: new Set<string>(),
+        doubleJeopardyUsed: [],
       }))
     }
   }
@@ -168,26 +168,31 @@ export default function Page() {
     }
 
     try {
-      const savedState = loadGameState(joinCode)
+      let savedState = null
+      if (typeof window !== "undefined" && window.localStorage) {
+        try {
+          const saved = localStorage.getItem(`game_${joinCode}`)
+          if (saved) {
+            savedState = JSON.parse(saved)
+          }
+        } catch (error) {
+          console.warn("Failed to load game state:", error)
+        }
+      }
+
       if (savedState) {
         setGameState({
           ...savedState,
           currentView: "join",
         })
-
-        try {
-          subscribeToGameUpdates(joinCode, (updatedState) => {
-            setGameState((prev) => ({
-              ...prev,
-              ...updatedState,
-              currentView: prev.currentView,
-            }))
-          })
-        } catch (error) {
-          console.warn("Failed to subscribe to updates:", error)
-        }
       } else {
-        alert("Game code not found. Please check the code and try again.")
+        setGameState((prev) => ({
+          ...prev,
+          gameCode: joinCode,
+          currentView: "join",
+          teams: [],
+          scores: {},
+        }))
       }
     } catch (error) {
       console.error("Failed to join game:", error)
@@ -206,8 +211,13 @@ export default function Page() {
     setGameState(updatedState)
     setTeamName("")
 
-    saveGameState(gameState.gameCode, updatedState)
-    syncGameState(gameState.gameCode, updatedState)
+    if (typeof window !== "undefined" && window.localStorage) {
+      try {
+        localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(updatedState))
+      } catch (error) {
+        console.warn("Failed to save game state:", error)
+      }
+    }
   }
 
   const selectQuestion = (category: string, value: number) => {
@@ -247,8 +257,14 @@ export default function Page() {
 
     console.log("Setting updated state:", updatedState.currentQuestion) // Added debugging
     setGameState(updatedState)
-    saveGameState(updatedState.gameCode, updatedState)
-    syncGameState(updatedState.gameCode, updatedState)
+
+    if (typeof window !== "undefined" && window.localStorage) {
+      try {
+        localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(updatedState))
+      } catch (error) {
+        console.warn("Failed to save game state:", error)
+      }
+    }
   }
 
   const buzz = (team: string) => {
@@ -257,8 +273,14 @@ export default function Page() {
       buzzedTeam: team,
     }
     setGameState(updatedState)
-    saveGameState(gameState.gameCode, updatedState)
-    syncGameState(gameState.gameCode, updatedState)
+
+    if (typeof window !== "undefined" && window.localStorage) {
+      try {
+        localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(updatedState))
+      } catch (error) {
+        console.warn("Failed to save game state:", error)
+      }
+    }
   }
 
   const awardPoints = (team: string, correct: boolean) => {
@@ -275,8 +297,14 @@ export default function Page() {
       buzzedTeam: null,
     }
     setGameState(updatedState)
-    saveGameState(gameState.gameCode, updatedState)
-    syncGameState(gameState.gameCode, updatedState)
+
+    if (typeof window !== "undefined" && window.localStorage) {
+      try {
+        localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(updatedState))
+      } catch (error) {
+        console.warn("Failed to save game state:", error)
+      }
+    }
   }
 
   const addCustomQuestion = () => {
@@ -449,6 +477,14 @@ export default function Page() {
                 <p className="text-sm text-amber-100">
                   Game Code: <span className="font-mono text-yellow-300 text-lg">{gameState.gameCode}</span>
                 </p>
+                <div className="mt-2">
+                  <div className="bg-white p-2 rounded-lg inline-block">
+                    <div className="w-24 h-24 bg-gray-800 flex items-center justify-center text-white text-xs font-mono">
+                      QR: {gameState.gameCode}
+                    </div>
+                  </div>
+                  <p className="text-xs text-amber-200 mt-1">Scan to join game</p>
+                </div>
               </div>
             </div>
             <Button
