@@ -676,6 +676,130 @@ export default function Page() {
     )
   }
 
+  // Player Game View
+  if (gameState.currentView === "game") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-amber-900 via-yellow-800 to-amber-800 text-white p-4">
+        <div className="container mx-auto max-w-4xl">
+          <div className="text-center mb-6">
+            <Image
+              src="/melanated-wellness-logo.png"
+              alt="Melanated Wellness"
+              width={80}
+              height={80}
+              className="rounded-lg mx-auto mb-4"
+            />
+            <h1 className="text-3xl font-bold">BLACK JEOPARDY</h1>
+            <p className="text-amber-100">
+              Game: {gameState.gameCode} | Team: {teamName}
+            </p>
+          </div>
+
+          {/* Current Question for Players */}
+          {gameState.currentQuestion && (
+            <Card className="mb-6 bg-amber-100/90 backdrop-blur-sm border-amber-200 text-amber-900">
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-lg">
+                    {gameState.currentQuestion.category.toUpperCase()} - ${gameState.currentQuestion.value}
+                  </CardTitle>
+                  {gameState.currentQuestion.isDoubleJeopardy && (
+                    <Badge className="bg-red-600 text-white font-bold">⚡ DOUBLE JEOPARDY!</Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-base mb-4 bg-white p-3 rounded">{gameState.currentQuestion.question}</p>
+                {gameState.buzzedTeam === teamName ? (
+                  <p className="text-green-600 font-bold bg-white p-2 rounded">
+                    You buzzed in! Give your answer to the host.
+                  </p>
+                ) : gameState.buzzedTeam ? (
+                  <p className="text-amber-700 bg-white p-2 rounded">Team "{gameState.buzzedTeam}" buzzed in first.</p>
+                ) : (
+                  <Button
+                    onClick={() => buzz(teamName)}
+                    className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 text-xl"
+                  >
+                    🔔 BUZZ IN!
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Game Board for Players */}
+          <Card className="mb-6 bg-amber-100/90 backdrop-blur-sm border-amber-200">
+            <CardHeader>
+              <CardTitle>Game Board</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-5 gap-2 text-xs sm:text-sm">
+                {/* Category Headers */}
+                {Object.keys(gameState.gameBoard).map((category) => (
+                  <div key={category} className="bg-blue-600 text-white p-2 text-center font-bold rounded">
+                    {category.toUpperCase()}
+                  </div>
+                ))}
+
+                {/* Question Values */}
+                {[200, 400, 600, 800, 1000].map((value) =>
+                  Object.keys(gameState.gameBoard).map((category) => {
+                    const key = `${category}-${value}`
+                    const isUsed = gameState.usedQuestions.includes(key)
+                    return (
+                      <div
+                        key={key}
+                        className={`p-2 text-center font-bold rounded ${
+                          isUsed ? "bg-gray-400 text-gray-600" : "bg-blue-500 text-white"
+                        }`}
+                      >
+                        ${value}
+                      </div>
+                    )
+                  }),
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Scoreboard */}
+          <Card className="bg-amber-100/90 backdrop-blur-sm border-amber-200">
+            <CardHeader>
+              <CardTitle>Scoreboard</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {Object.entries(gameState.scores)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([team, score]) => (
+                    <div
+                      key={team}
+                      className={`flex justify-between items-center p-3 rounded ${
+                        team === teamName ? "bg-yellow-200 font-bold" : "bg-white/20"
+                      }`}
+                    >
+                      <span>{team}</span>
+                      <span className="font-bold">${score}</span>
+                    </div>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="text-center">
+            <Button
+              onClick={() => setGameState((prev) => ({ ...prev, currentView: "home" }))}
+              className="bg-red-600 hover:bg-red-700 text-white px-6 py-2"
+            >
+              Leave Game
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Join/Player View
   if (gameState.currentView === "join") {
     return (
@@ -689,7 +813,7 @@ export default function Page() {
               height={80}
               className="rounded-lg mx-auto mb-4"
             />
-            <h1 className="text-2xl font-bold">BLACK JEOPARDY</h1>
+            <h1 className="text-3xl font-bold">BLACK JEOPARDY</h1>
             <p className="text-amber-100">Game: {gameState.gameCode}</p>
           </div>
 
@@ -756,8 +880,13 @@ export default function Page() {
                 {Object.entries(gameState.scores)
                   .sort(([, a], [, b]) => b - a)
                   .map(([team, score]) => (
-                    <div key={team} className="flex justify-between items-center p-2 bg-white/5 rounded">
-                      <span className={team === teamName ? "font-bold text-yellow-300" : ""}>{team}</span>
+                    <div
+                      key={team}
+                      className={`flex justify-between items-center p-3 rounded ${
+                        team === teamName ? "bg-yellow-200 font-bold" : "bg-white/20"
+                      }`}
+                    >
+                      <span>{team}</span>
                       <span className="font-bold">${score}</span>
                     </div>
                   ))}
