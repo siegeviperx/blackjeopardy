@@ -1,8 +1,7 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -201,19 +200,43 @@ export default function Page() {
   }
 
   const addTeam = () => {
-    if (!teamName.trim() || gameState.teams.includes(teamName)) return
+    console.log("addTeam called with teamName:", teamName)
+    console.log("Current teams:", gameState.teams)
+
+    if (!teamName.trim()) {
+      console.log("Team name is empty")
+      return
+    }
+
+    if (gameState.teams.includes(teamName)) {
+      console.log("Team name already exists")
+      alert("Team name already exists. Please choose a different name.")
+      return
+    }
 
     const updatedState = {
       ...gameState,
       teams: [...gameState.teams, teamName],
       scores: { ...gameState.scores, [teamName]: 0 },
     }
+
+    console.log("Updated state:", updatedState)
     setGameState(updatedState)
     setTeamName("")
 
+    // Save to localStorage
     if (typeof window !== "undefined" && window.localStorage) {
       try {
         localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(updatedState))
+        console.log("Saved to localStorage successfully")
+
+        window.dispatchEvent(
+          new StorageEvent("storage", {
+            key: `game_${gameState.gameCode}`,
+            newValue: JSON.stringify(updatedState),
+            storageArea: localStorage,
+          }),
+        )
       } catch (error) {
         console.warn("Failed to save game state:", error)
       }
@@ -322,6 +345,48 @@ export default function Page() {
     console.log("Adding custom Double Jeopardy question:", newDoubleJeopardyQuestion)
     setNewDoubleJeopardyQuestion({ category: "", value: 400, question: "", answer: "" })
   }
+
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === `game_${gameState.gameCode}` && e.newValue) {
+        try {
+          const updatedState = JSON.parse(e.newValue)
+          console.log("Storage change detected, updating state:", updatedState)
+          setGameState(updatedState)
+        } catch (error) {
+          console.warn("Failed to parse storage update:", error)
+        }
+      }
+    }
+
+    const pollForUpdates = () => {
+      if (typeof window !== "undefined" && window.localStorage && gameState.gameCode) {
+        try {
+          const stored = localStorage.getItem(`game_${gameState.gameCode}`)
+          if (stored) {
+            const storedState = JSON.parse(stored)
+            // Only update if there are actual changes (like new teams)
+            if (storedState.teams.length !== gameState.teams.length) {
+              console.log("Polling detected team changes, updating state")
+              setGameState(storedState)
+            }
+          }
+        } catch (error) {
+          console.warn("Failed to poll for updates:", error)
+        }
+      }
+    }
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", handleStorageChange)
+      const pollInterval = setInterval(pollForUpdates, 2000)
+
+      return () => {
+        window.removeEventListener("storage", handleStorageChange)
+        clearInterval(pollInterval)
+      }
+    }
+  }, [gameState.gameCode, gameState.teams.length])
 
   if (gameState.currentView === "adminAuth") {
     return (
