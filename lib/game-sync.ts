@@ -1,161 +1,79 @@
-// Shared game synchronization using localStorage and events
-interface SyncedGameState {
-  gameId: string
+import { createClient } from "@supabase/supabase-js"
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+export interface GameState {
+  gameCode: string
+  currentView: string
+  gameBoard: Record<string, any>
+  teams: string[]
+  scores: Record<string, number>
   currentQuestion: any
-  questionActive: boolean
-  usedQuestions: string[]
-  usedDoubleJeopardyQuestions: string[]
-  teams: Array<{
-    id: string
-    name: string
-    score: number
-    buzzedIn: boolean
-    buzzTime?: number
-    canSelectQuestion?: boolean
-  }>
-  buzzerOpen: boolean
-  doubleJeopardyPositions: string[]
-  isDoubleJeopardy: boolean
-  lastUpdated: number
-  updatedBy: "host" | "player"
+  usedQuestions: Set<string>
 }
 
-const SYNC_STORAGE_KEY = "black-jeopardy-sync-state"
-
-export function saveSyncedGameState(gameState: any, updatedBy: "host" | "player") {
+export async function saveGameState(gameCode: string, gameState: GameState) {
   try {
-    const syncState: SyncedGameState = {
-      gameId: gameState.gameId || "",
-      currentQuestion: gameState.currentQuestion || null,
-      questionActive: gameState.questionActive || false,
-      usedQuestions: gameState.usedQuestions ? Array.from(gameState.usedQuestions) : [],
-      usedDoubleJeopardyQuestions: gameState.usedDoubleJeopardyQuestions
-        ? Array.from(gameState.usedDoubleJeopardyQuestions)
-        : [],
-      teams: gameState.teams || [],
-      buzzerOpen: gameState.buzzerOpen || false,
-      doubleJeopardyPositions: gameState.doubleJeopardyPositions ? Array.from(gameState.doubleJeopardyPositions) : [],
-      isDoubleJeopardy: gameState.isDoubleJeopardy || false,
-      lastUpdated: Date.now(),
-      updatedBy,
-    }
+    const { error } = await supabase.from("game_sessions").upsert({
+      game_code: gameCode,
+      game_state: gameState,
+      updated_at: new Date().toISOString(),
+    })
 
-    localStorage.setItem(SYNC_STORAGE_KEY, JSON.stringify(syncState))
-
-    // Dispatch storage event for cross-tab communication
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(
-        new StorageEvent("storage", {
-          key: SYNC_STORAGE_KEY,
-          newValue: JSON.stringify(syncState),
-          storageArea: localStorage,
-        }),
-      )
+    if (error) {
+      console.error("Error saving game state:", error)
+      // Fallback to localStorage
+      localStorage.setItem(`game_${gameCode}`, JSON.stringify(gameState))
     }
   } catch (error) {
-    console.error("Failed to save synced game state:", error)
+    console.error("Error saving to Supabase:", error)
+    // Fallback to localStorage
+    localStorage.setItem(`game_${gameCode}`, JSON.stringify(gameState))
   }
 }
 
-export function loadSyncedGameState(): SyncedGameState | null {
+export async function loadGameState(gameCode: string): Promise<GameState | null> {
   try {
-    if (typeof window === "undefined") return null
+    const { data, error } = await supabase.from("game_sessions").select("game_state").eq("game_code", gameCode).single()
 
-    const savedState = localStorage.getItem(SYNC_STORAGE_KEY)
-    if (!savedState) return null
+    if (error || !data) {
+      // Fallback to localStorage
+      const stored = localStorage.getItem(`game_${gameCode}`)
+      return stored ? JSON.parse(stored) : null
+    }
 
-    return JSON.parse(savedState)
+    return data.game_state as GameState
   } catch (error) {
-    console.error("Failed to load synced game state:", error)
-    return null
+    console.error("Error loading from Supabase:", error)
+    // Fallback to localStorage
+    const stored = localStorage.getItem(`game_${gameCode}`)
+    return stored ? JSON.parse(stored) : null
   }
 }
 
-export function subscribeToGameStateChanges(callback: (state: SyncedGameState) => void) {
-  if (typeof window === "undefined") return () => {}
-
-  const handleStorageChange = (event: StorageEvent) => {
-    if (event.key === SYNC_STORAGE_KEY && event.newValue) {
-      try {
-        const newState = JSON.parse(event.newValue)
-        callback(newState)
-      } catch (error) {
-        console.error("Failed to parse synced state:", error)
-      }
-    }
-  }
-
-  window.addEventListener("storage", handleStorageChange)
+export function subscribeToGameUpdates(gameCode: string, callback: (gameState: GameState) => void) {
+  const channel = supabase
+    .channel(`game_${gameCode}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "game_sessions",
+        filter: `game_code=eq.${gameCode}`,
+      },
+      (payload) => {
+        if (payload.new && "game_state" in payload.new) {
+          callback(payload.new.game_state as GameState)
+        }
+      },
+    )
+    .subscribe()
 
   return () => {
-    window.removeEventListener("storage", handleStorageChange)
+    supabase.removeChannel(channel)
   }
-}
-
-export function clearSyncedGameState() {
-  try {
-    localStorage.removeItem(SYNC_STORAGE_KEY)
-  } catch (error) {
-    console.error("Failed to clear synced game state:", error)
-  }
-}
-
-// Helper to add a team to the synced state
-export function addTeamToSyncedState(teamName: string, gameId: string) {
-  const currentState = loadSyncedGameState()
-  if (!currentState || currentState.gameId !== gameId) return null
-
-  const newTeam = {
-    id: Math.random().toString(36).substring(2, 8),
-    name: teamName,
-    score: 0,
-    buzzedIn: false,
-    canSelectQuestion: false,
-  }
-
-  const updatedState = {
-    ...currentState,
-    teams: [...currentState.teams, newTeam],
-  }
-
-  saveSyncedGameState(updatedState, "player")
-  return newTeam
-}
-
-// Helper to update team buzz status
-export function updateTeamBuzzStatus(teamId: string, buzzedIn: boolean, canSelectQuestion = false) {
-  const currentState = loadSyncedGameState()
-  if (!currentState) return
-
-  const updatedState = {
-    ...currentState,
-    teams: currentState.teams.map((team) =>
-      team.id === teamId
-        ? { ...team, buzzedIn, canSelectQuestion }
-        : { ...team, buzzedIn: false, canSelectQuestion: false },
-    ),
-  }
-
-  saveSyncedGameState(updatedState, "player")
-}
-
-// Helper to select a question
-export function selectQuestionInSyncedState(category: string, value: number, questionData: any) {
-  const currentState = loadSyncedGameState()
-  if (!currentState) return
-
-  const questionKey = `${category}-${value}`
-
-  const updatedState = {
-    ...currentState,
-    currentQuestion: { category, value, ...questionData },
-    questionActive: true,
-    usedQuestions: [...currentState.usedQuestions, questionKey],
-    teams: currentState.teams.map((team) => ({
-      ...team,
-      canSelectQuestion: false,
-    })),
-  }
-
-  saveSyncedGameState(updatedState, "player")
 }
