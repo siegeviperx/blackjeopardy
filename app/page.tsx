@@ -7,7 +7,36 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Users, Trophy, Zap } from "lucide-react"
 import { type questions, getRandomQuestion } from "@/lib/questions"
-import { saveGameState, loadGameState, subscribeToGameUpdates } from "@/lib/supabase/game-sync"
+
+function saveGameState(gameCode: string, gameState: any) {
+  try {
+    localStorage.setItem(`game_${gameCode}`, JSON.stringify(gameState))
+  } catch (error) {
+    console.error("Error saving game state:", error)
+  }
+}
+
+function loadGameState(gameCode: string) {
+  try {
+    const stored = localStorage.getItem(`game_${gameCode}`)
+    return stored ? JSON.parse(stored) : null
+  } catch (error) {
+    console.error("Error loading game state:", error)
+    return null
+  }
+}
+
+function subscribeToGameUpdates(gameCode: string, callback: (gameState: any) => void) {
+  // Simple polling fallback
+  const interval = setInterval(() => {
+    const gameState = loadGameState(gameCode)
+    if (gameState) {
+      callback(gameState)
+    }
+  }, 2000)
+
+  return () => clearInterval(interval)
+}
 
 type GameState = {
   gameCode: string
@@ -117,7 +146,7 @@ export default function BlackJeopardyApp() {
       }
 
       setGameState(newGameState)
-      await saveGameState(newGameState)
+      await saveGameState(code, newGameState)
 
       console.log("Host game started with code:", code)
     } catch (error) {
@@ -150,7 +179,7 @@ export default function BlackJeopardyApp() {
           gameBoard: initializeGameBoard(),
         }
         setGameState(newGameState)
-        await saveGameState(newGameState)
+        await saveGameState(joinCode, newGameState)
         console.log("Created new game state for code:", joinCode)
       }
     } catch (error) {
@@ -176,7 +205,7 @@ export default function BlackJeopardyApp() {
       }
 
       setGameState(updatedState)
-      await saveGameState(updatedState)
+      await saveGameState(gameState.gameCode, updatedState)
 
       setTeamName("")
       console.log("Team added successfully:", name)
@@ -215,7 +244,7 @@ export default function BlackJeopardyApp() {
       }
 
       setGameState(updatedState)
-      await saveGameState(updatedState)
+      await saveGameState(gameState.gameCode, updatedState)
     } catch (error) {
       console.error("Error selecting question:", error)
     }
@@ -231,7 +260,7 @@ export default function BlackJeopardyApp() {
       }
 
       setGameState(updatedState)
-      await saveGameState(updatedState)
+      await saveGameState(gameState.gameCode, updatedState)
     } catch (error) {
       console.error("Error buzzing in:", error)
     }
@@ -250,7 +279,7 @@ export default function BlackJeopardyApp() {
       }
 
       setGameState(updatedState)
-      await saveGameState(updatedState)
+      await saveGameState(gameState.gameCode, updatedState)
     } catch (error) {
       console.error("Error awarding points:", error)
     }
@@ -807,7 +836,7 @@ export default function BlackJeopardyApp() {
         }
 
         setGameState(updatedState)
-        await saveGameState(updatedState)
+        await saveGameState(gameState.gameCode, updatedState)
 
         alert(
           `${activeTab === "regular" ? "Regular" : "Double Jeopardy"} question added:\n\nCategory: ${selectedCategory}\nPoints: ${selectedPoints}\nQuestion: ${newQuestion}\nAnswer: ${newAnswer}`,
