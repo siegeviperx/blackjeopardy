@@ -218,6 +218,7 @@ export default function Page() {
       ...gameState,
       teams: [...gameState.teams, teamName],
       scores: { ...gameState.scores, [teamName]: 0 },
+      currentView: gameState.currentView === "join" ? ("game" as const) : gameState.currentView,
     }
 
     console.log("Updated state:", updatedState)
@@ -352,7 +353,10 @@ export default function Page() {
         try {
           const updatedState = JSON.parse(e.newValue)
           console.log("Storage change detected, updating state:", updatedState)
-          setGameState(updatedState)
+          setGameState((prev) => ({
+            ...updatedState,
+            currentView: prev.currentView,
+          }))
         } catch (error) {
           console.warn("Failed to parse storage update:", error)
         }
@@ -368,7 +372,10 @@ export default function Page() {
             // Only update if there are actual changes (like new teams)
             if (storedState.teams.length !== gameState.teams.length) {
               console.log("Polling detected team changes, updating state")
-              setGameState(storedState)
+              setGameState((prev) => ({
+                ...storedState,
+                currentView: prev.currentView,
+              }))
             }
           }
         } catch (error) {
