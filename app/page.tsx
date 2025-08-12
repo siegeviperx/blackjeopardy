@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { type questions, doubleJeopardyQuestions, getRandomQuestion } from "@/lib/questions"
 import Image from "next/image"
 
+import { supabase } from "@/lib/supabase"
+
 const ADMIN_PIN = "2424"
 
 interface GameState {
@@ -121,7 +123,7 @@ export default function Page() {
     return board
   }
 
-  const startHostGame = () => {
+  const startHostGame = async () => {
     try {
       const code = Math.random().toString(36).substr(2, 6).toUpperCase()
       const board = initializeGameBoard()
@@ -137,11 +139,23 @@ export default function Page() {
       }
       setGameState(newGameState)
 
-      if (typeof window !== "undefined" && window.localStorage) {
-        try {
+      try {
+        const { error } = await supabase.from("game_sessions").upsert({
+          game_code: code,
+          game_state: newGameState,
+        })
+
+        if (error) {
+          console.warn("Failed to save game to Supabase:", error)
+          // Fallback to localStorage
+          if (typeof window !== "undefined" && window.localStorage) {
+            localStorage.setItem(`game_${code}`, JSON.stringify(newGameState))
+          }
+        }
+      } catch (error) {
+        console.warn("Supabase save failed, using localStorage:", error)
+        if (typeof window !== "undefined" && window.localStorage) {
           localStorage.setItem(`game_${code}`, JSON.stringify(newGameState))
-        } catch (error) {
-          console.warn("Failed to save game state:", error)
         }
       }
     } catch (error) {
@@ -160,7 +174,7 @@ export default function Page() {
     }
   }
 
-  const joinGame = () => {
+  const joinGame = async () => {
     if (!joinCode.trim()) {
       alert("Please enter a game code")
       return
@@ -168,7 +182,23 @@ export default function Page() {
 
     try {
       let savedState = null
-      if (typeof window !== "undefined" && window.localStorage) {
+
+      try {
+        const { data, error } = await supabase
+          .from("game_sessions")
+          .select("game_state")
+          .eq("game_code", joinCode)
+          .single()
+
+        if (data && !error) {
+          savedState = data.game_state
+        }
+      } catch (error) {
+        console.warn("Failed to load from Supabase, trying localStorage:", error)
+      }
+
+      // Fallback to localStorage if Supabase fails
+      if (!savedState && typeof window !== "undefined" && window.localStorage) {
         try {
           const saved = localStorage.getItem(`game_${joinCode}`)
           if (saved) {
@@ -185,13 +215,8 @@ export default function Page() {
           currentView: "join",
         })
       } else {
-        setGameState((prev) => ({
-          ...prev,
-          gameCode: joinCode,
-          currentView: "join",
-          teams: [],
-          scores: {},
-        }))
+        alert("Game not found. Please check the game code.")
+        return
       }
     } catch (error) {
       console.error("Failed to join game:", error)
@@ -199,7 +224,7 @@ export default function Page() {
     }
   }
 
-  const addTeam = (name: string) => {
+  const addTeam = async (name: string) => {
     if (!name.trim() || gameState.teams.includes(name)) return
 
     console.log("Adding team:", name, "Current view:", gameState.currentView)
@@ -214,17 +239,29 @@ export default function Page() {
     setGameState(updatedState)
     setTeamName(name)
 
-    if (typeof window !== "undefined" && window.localStorage) {
-      try {
+    try {
+      const { error } = await supabase.from("game_sessions").upsert({
+        game_code: gameState.gameCode,
+        game_state: updatedState,
+      })
+
+      if (error) {
+        console.warn("Failed to save to Supabase:", error)
+        // Fallback to localStorage
+        if (typeof window !== "undefined" && window.localStorage) {
+          localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(updatedState))
+        }
+      }
+      console.log("Saved game state with new team to Supabase")
+    } catch (error) {
+      console.warn("Supabase save failed, using localStorage:", error)
+      if (typeof window !== "undefined" && window.localStorage) {
         localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(updatedState))
-        console.log("Saved game state with new team")
-      } catch (error) {
-        console.warn("Failed to save game state:", error)
       }
     }
   }
 
-  const selectQuestion = (category: string, value: number) => {
+  const selectQuestion = async (category: string, value: number) => {
     console.log("selectQuestion called:", category, value) // Added debugging
     const key = `${category}-${value}`
     const questionData = gameState.gameBoard[key]
@@ -259,35 +296,54 @@ export default function Page() {
       updatedState.doubleJeopardyUsed = [...gameState.doubleJeopardyUsed, key]
     }
 
-    console.log("Setting updated state:", updatedState.currentQuestion) // Added debugging
+    console.log("Setting updated state:", updatedState.currentQuestion)
     setGameState(updatedState)
 
-    if (typeof window !== "undefined" && window.localStorage) {
-      try {
+    try {
+      const { error } = await supabase.from("game_sessions").upsert({
+        game_code: gameState.gameCode,
+        game_state: updatedState,
+      })
+
+      if (error) {
+        console.warn("Failed to save to Supabase:", error)
+        // Fallback to localStorage
+        if (typeof window !== "undefined" && window.localStorage) {
+          localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(updatedState))
+        }
+      }
+    } catch (error) {
+      console.warn("Supabase save failed, using localStorage:", error)
+      if (typeof window !== "undefined" && window.localStorage) {
         localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(updatedState))
-      } catch (error) {
-        console.warn("Failed to save game state:", error)
       }
     }
   }
 
-  const buzz = (team: string) => {
+  const buzz = async (team: string) => {
     const updatedState = {
       ...gameState,
       buzzedTeam: team,
     }
     setGameState(updatedState)
 
-    if (typeof window !== "undefined" && window.localStorage) {
-      try {
+    try {
+      const { error } = await supabase.from("game_sessions").upsert({
+        game_code: gameState.gameCode,
+        game_state: updatedState,
+      })
+
+      if (error && typeof window !== "undefined" && window.localStorage) {
         localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(updatedState))
-      } catch (error) {
-        console.warn("Failed to save game state:", error)
+      }
+    } catch (error) {
+      if (typeof window !== "undefined" && window.localStorage) {
+        localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(updatedState))
       }
     }
   }
 
-  const awardPoints = (team: string, correct: boolean) => {
+  const awardPoints = async (team: string, correct: boolean) => {
     if (!gameState.currentQuestion) return
 
     const points = correct ? gameState.currentQuestion.value : -gameState.currentQuestion.value
@@ -302,11 +358,18 @@ export default function Page() {
     }
     setGameState(updatedState)
 
-    if (typeof window !== "undefined" && window.localStorage) {
-      try {
+    try {
+      const { error } = await supabase.from("game_sessions").upsert({
+        game_code: gameState.gameCode,
+        game_state: updatedState,
+      })
+
+      if (error && typeof window !== "undefined" && window.localStorage) {
         localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(updatedState))
-      } catch (error) {
-        console.warn("Failed to save game state:", error)
+      }
+    } catch (error) {
+      if (typeof window !== "undefined" && window.localStorage) {
+        localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(updatedState))
       }
     }
   }
@@ -328,50 +391,73 @@ export default function Page() {
   }
 
   useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === `game_${gameState.gameCode}` && e.newValue) {
-        try {
-          const updatedState = JSON.parse(e.newValue)
-          console.log("Storage change detected, updating state:", updatedState)
+    if (!gameState.gameCode) return
+
+    // Set up real-time subscription for cross-device sync
+    const subscription = supabase
+      .channel(`game_${gameState.gameCode}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "game_sessions",
+          filter: `game_code=eq.${gameState.gameCode}`,
+        },
+        (payload) => {
+          console.log("Real-time update received:", payload)
+          if (payload.new && payload.new.game_state) {
+            setGameState((prev) => ({
+              ...payload.new.game_state,
+              currentView: prev.currentView, // Preserve current view
+            }))
+          }
+        },
+      )
+      .subscribe()
+
+    // Fallback polling for localStorage (in case Supabase fails)
+    const pollForUpdates = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("game_sessions")
+          .select("game_state")
+          .eq("game_code", gameState.gameCode)
+          .single()
+
+        if (data && !error && data.game_state.teams.length !== gameState.teams.length) {
+          console.log("Polling detected team changes, updating state")
           setGameState((prev) => ({
-            ...updatedState,
+            ...data.game_state,
             currentView: prev.currentView,
           }))
-        } catch (error) {
-          console.warn("Failed to parse storage update:", error)
         }
-      }
-    }
-
-    const pollForUpdates = () => {
-      if (typeof window !== "undefined" && window.localStorage && gameState.gameCode) {
-        try {
-          const stored = localStorage.getItem(`game_${gameState.gameCode}`)
-          if (stored) {
-            const storedState = JSON.parse(stored)
-            // Only update if there are actual changes (like new teams)
-            if (storedState.teams.length !== gameState.teams.length) {
-              console.log("Polling detected team changes, updating state")
-              setGameState((prev) => ({
-                ...storedState,
-                currentView: prev.currentView,
-              }))
+      } catch (error) {
+        // Fallback to localStorage polling
+        if (typeof window !== "undefined" && window.localStorage) {
+          try {
+            const stored = localStorage.getItem(`game_${gameState.gameCode}`)
+            if (stored) {
+              const storedState = JSON.parse(stored)
+              if (storedState.teams.length !== gameState.teams.length) {
+                setGameState((prev) => ({
+                  ...storedState,
+                  currentView: prev.currentView,
+                }))
+              }
             }
+          } catch (error) {
+            console.warn("Failed to poll for updates:", error)
           }
-        } catch (error) {
-          console.warn("Failed to poll for updates:", error)
         }
       }
     }
 
-    if (typeof window !== "undefined") {
-      window.addEventListener("storage", handleStorageChange)
-      const pollInterval = setInterval(pollForUpdates, 2000)
+    const pollInterval = setInterval(pollForUpdates, 3000)
 
-      return () => {
-        window.removeEventListener("storage", handleStorageChange)
-        clearInterval(pollInterval)
-      }
+    return () => {
+      subscription.unsubscribe()
+      clearInterval(pollInterval)
     }
   }, [gameState.gameCode, gameState.teams.length])
 
