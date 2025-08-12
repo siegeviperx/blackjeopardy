@@ -199,45 +199,25 @@ export default function Page() {
     }
   }
 
-  const addTeam = () => {
-    console.log("addTeam called with teamName:", teamName)
-    console.log("Current teams:", gameState.teams)
+  const addTeam = (name: string) => {
+    if (!name.trim() || gameState.teams.includes(name)) return
 
-    if (!teamName.trim()) {
-      console.log("Team name is empty")
-      return
-    }
-
-    if (gameState.teams.includes(teamName)) {
-      console.log("Team name already exists")
-      alert("Team name already exists. Please choose a different name.")
-      return
-    }
+    console.log("Adding team:", name, "Current view:", gameState.currentView)
 
     const updatedState = {
       ...gameState,
-      teams: [...gameState.teams, teamName],
-      scores: { ...gameState.scores, [teamName]: 0 },
+      teams: [...gameState.teams, name],
+      scores: { ...gameState.scores, [name]: 0 },
       currentView: gameState.currentView === "join" ? ("game" as const) : gameState.currentView,
     }
 
-    console.log("Updated state:", updatedState)
     setGameState(updatedState)
-    setTeamName("")
+    setTeamName(name)
 
-    // Save to localStorage
     if (typeof window !== "undefined" && window.localStorage) {
       try {
         localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(updatedState))
-        console.log("Saved to localStorage successfully")
-
-        window.dispatchEvent(
-          new StorageEvent("storage", {
-            key: `game_${gameState.gameCode}`,
-            newValue: JSON.stringify(updatedState),
-            storageArea: localStorage,
-          }),
-        )
+        console.log("Saved game state with new team")
       } catch (error) {
         console.warn("Failed to save game state:", error)
       }
@@ -678,6 +658,7 @@ export default function Page() {
 
   // Player Game View
   if (gameState.currentView === "game") {
+    console.log("Rendering player game view for team:", teamName)
     return (
       <div className="min-h-screen bg-gradient-to-br from-amber-900 via-yellow-800 to-amber-800 text-white p-4">
         <div className="container mx-auto max-w-4xl">
@@ -830,7 +811,7 @@ export default function Page() {
                   className="bg-white/80 border-amber-300 text-amber-900 placeholder-amber-600"
                 />
                 <Button
-                  onClick={addTeam}
+                  onClick={() => addTeam(teamName)}
                   className="w-full bg-white text-amber-800 hover:bg-gray-50 font-semibold py-3"
                 >
                   Join Game
