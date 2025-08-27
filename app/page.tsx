@@ -136,33 +136,34 @@ export default function BlackJeopardyApp() {
     }
   }
 
-  const joinGame = async () => {
-    if (!joinCode.trim()) {
-      alert("Please enter a game code")
-      return
-    }
-
-    try {
-      console.log("Attempting to join game with code:", joinCode)
-      const savedState = await loadGameState(joinCode)
-
-      if (savedState) {
-        setGameState({
-          ...savedState,
-          currentView: "join",
-        })
-        console.log("Successfully joined game:", joinCode)
-      } else {
-        // Don't create new game - show error instead
-        alert("Game not found! Please check the code and try again.")
-        return
-      }
-    } catch (error) {
-      console.error("Error joining game:", error)
-      alert("Failed to join game. Please check the code and try again.")
-    }
+const joinGame = async () => {
+  if (!joinCode.trim()) {
+    alert("Please enter a game code")
+    return
   }
 
+  try {
+    console.log("Attempting to join game with code:", joinCode)
+    const savedState = await loadGameState(joinCode)
+    
+    // Add this debug line
+    console.log("LoadGameState result:", savedState)
+
+    if (savedState) {
+      setGameState({
+        ...savedState,
+        currentView: "join",
+      })
+      console.log("Successfully joined game:", joinCode)
+    } else {
+      alert("Game not found! Please check the code and try again.")
+      return
+    }
+  } catch (error) {
+    console.error("Error joining game:", error)
+    alert("Failed to join game. Please check the code and try again.")
+  }
+}
   const addTeam = async () => {
     if (!teamName.trim() || gameState.teams.includes(teamName)) return
 
