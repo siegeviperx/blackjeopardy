@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -279,7 +279,11 @@ export default function BlackJeopardyApp() {
         currentAnsweringTeam: null,
         buzzerEnabled: gameState.teams.length > gameState.buzzerQueue.length,
         questionPhase:
-          gameState.teams.length > gameState.buzzerQueue.length ? ("waiting" as const) : ("complete" as const),
+          gameState.teams.length > gameState.buzzerQueue.length
+            ? ("waiting" as const)
+            : gameState.questionPhase === "complete"
+              ? ("complete" as const)
+              : ("reading" as const),
         currentQuestion: gameState.teams.length > gameState.buzzerQueue.length ? gameState.currentQuestion : null,
         buzzerQueue: gameState.teams.length > gameState.buzzerQueue.length ? gameState.buzzerQueue : [],
       }
@@ -313,6 +317,24 @@ export default function BlackJeopardyApp() {
     }
   }
 
+  const handleGameUpdate = useCallback((updatedState: GameState) => {
+    console.log("[v0] Received real-time game update:", updatedState)
+
+    setGameState((currentState) => {
+      console.log("[v0] Updating state from:", currentState.teams, "to:", updatedState.teams)
+
+      // Only update if there are actual changes
+      if (JSON.stringify(updatedState) !== JSON.stringify(currentState)) {
+        return {
+          ...updatedState,
+          currentView: currentState.currentView, // Preserve current view
+        }
+      }
+
+      return currentState
+    })
+  }, [])
+
   useEffect(() => {
     if (!gameState.gameCode) {
       console.log("[v0] No game code, skipping subscription setup")
@@ -321,41 +343,50 @@ export default function BlackJeopardyApp() {
 
     console.log("[v0] Setting up real-time subscription for game:", gameState.gameCode)
 
-    const handleGameUpdate = (updatedState: GameState) => {
-      console.log("[v0] Received real-time game update:", updatedState)
-      console.log("[v0] Current teams:", gameState.teams, "Updated teams:", updatedState.teams)
-
-      // Preserve current view to prevent unwanted view changes
-      setGameState((prevState) => {
-        console.log("[v0] Updating state from:", prevState.teams, "to:", updatedState.teams)
-        return {
-          ...updatedState,
-          currentView: prevState.currentView,
-        }
-      })
-    }
-
     const unsubscribe = subscribeToGameUpdates(gameState.gameCode, handleGameUpdate)
 
-    // Also poll for updates every 2 seconds as additional fallback
+    // Enhanced polling with more frequent checks
     const pollInterval = setInterval(async () => {
       try {
         const latestState = await loadGameState(gameState.gameCode)
-        if (latestState && JSON.stringify(latestState.teams) !== JSON.stringify(gameState.teams)) {
-          console.log("[v0] Polling detected team changes:", latestState.teams)
-          handleGameUpdate(latestState)
+        if (latestState) {
+          setGameState((currentState) => {
+            console.log(
+              "[v0] Polling check - current teams:",
+              currentState.teams?.length || 0,
+              "latest teams:",
+              latestState.teams?.length || 0,
+            )
+
+            // Check for any meaningful changes
+            const hasChanges =
+              JSON.stringify(latestState.teams) !== JSON.stringify(currentState.teams) ||
+              JSON.stringify(latestState.currentQuestion) !== JSON.stringify(currentState.currentQuestion) ||
+              JSON.stringify(latestState.buzzerQueue) !== JSON.stringify(currentState.buzzerQueue) ||
+              latestState.questionPhase !== currentState.questionPhase
+
+            if (hasChanges) {
+              console.log("[v0] Polling detected changes, updating state")
+              return {
+                ...latestState,
+                currentView: currentState.currentView, // Preserve current view
+              }
+            }
+
+            return currentState // No changes, return current state
+          })
         }
       } catch (error) {
         console.error("[v0] Polling error:", error)
       }
-    }, 2000)
+    }, 1000) // More frequent polling - every 1 second
 
     return () => {
-      console.log("[v0] Cleaning up subscription and polling")
+      console.log("[v0] Cleaning up subscription and polling for game:", gameState.gameCode)
       unsubscribe()
       clearInterval(pollInterval)
     }
-  }, [gameState.gameCode]) // Removed teams.length to avoid specifying a dependency more specific than its captures
+  }, [gameState.gameCode, handleGameUpdate]) // Added handleGameUpdate to dependencies
 
   const handleAdminAccess = () => {
     if (adminPin === "2424") {
