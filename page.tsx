@@ -180,7 +180,7 @@ export default function BlackJeopardyApp() {
         teams: [...gameState.teams, teamName],
         scores: { ...gameState.scores, [teamName]: 0 },
         selectedTeam: teamName,
-        currentView: gameState.currentView === "join" ? ("game" as const) : gameState.currentView,
+        currentView: "game" as const, // Immediately switch player to game view
       }
 
       console.log("[v0] Updated state with new team:", updatedState.teams)
@@ -204,7 +204,13 @@ export default function BlackJeopardyApp() {
       console.log("[v0] Selecting question:", key, "for game:", gameState.gameCode)
       const updatedState = {
         ...gameState,
-        currentQuestion: questionData,
+        currentQuestion: {
+          question: questionData.question,
+          answer: questionData.answer,
+          category: category,
+          value: value,
+          isDoubleJeopardy: questionData.isDoubleJeopardy
+        },
         gameBoard: {
           ...gameState.gameBoard,
           [key]: { ...questionData, used: true },
@@ -212,6 +218,7 @@ export default function BlackJeopardyApp() {
         questionPhase: "reading" as const,
         buzzedTeam: null,
         availableTeams: [...gameState.teams],
+        buzzerEnabled: true,
       }
 
       console.log("[v0] Question selected, updating all devices")
@@ -313,6 +320,7 @@ export default function BlackJeopardyApp() {
     }
   }
 
+  // FIXED useEffect for real-time synchronization
   useEffect(() => {
     if (!gameState.gameCode) {
       console.log("[v0] No game code, skipping subscription setup")
@@ -325,37 +333,64 @@ export default function BlackJeopardyApp() {
       console.log("[v0] Received real-time game update:", updatedState)
       console.log("[v0] Current teams:", gameState.teams, "Updated teams:", updatedState.teams)
 
-      // Preserve current view to prevent unwanted view changes
       setGameState((prevState) => {
         console.log("[v0] Updating state from:", prevState.teams, "to:", updatedState.teams)
+        
+        // Smart view management: preserve current view unless there are specific reasons to change
+        let newView = prevState.currentView
+        
+        // If player joined a game and their team is now in the teams list, switch to game view
+        if (prevState.currentView === "join" && prevState.selectedTeam && 
+            updatedState.teams.includes(prevState.selectedTeam)) {
+          newView = "game"
+          console.log("[v0] Player's team found in game, switching to game view")
+        }
+        
+        // If host view and question was selected, ensure it stays on host view
+        if (prevState.currentView === "host") {
+          newView = "host"
+        }
+        
         return {
           ...updatedState,
-          currentView: prevState.currentView,
+          currentView: newView,
+          selectedTeam: prevState.selectedTeam, // Preserve selected team
         }
       })
     }
 
     const unsubscribe = subscribeToGameUpdates(gameState.gameCode, handleGameUpdate)
 
-    // Also poll for updates every 2 seconds as additional fallback
+    // Reduced polling frequency and better error handling
     const pollInterval = setInterval(async () => {
       try {
         const latestState = await loadGameState(gameState.gameCode)
-        if (latestState && JSON.stringify(latestState.teams) !== JSON.stringify(gameState.teams)) {
-          console.log("[v0] Polling detected team changes:", latestState.teams)
-          handleGameUpdate(latestState)
+        if (latestState) {
+          // Only update if there are meaningful changes
+          const currentTeamsStr = JSON.stringify(gameState.teams.sort())
+          const latestTeamsStr = JSON.stringify(latestState.teams.sort())
+          const currentQuestionStr = JSON.stringify(gameState.currentQuestion)
+          const latestQuestionStr = JSON.stringify(latestState.currentQuestion)
+          
+          if (currentTeamsStr !== latestTeamsStr || currentQuestionStr !== latestQuestionStr) {
+            console.log("[v0] Polling detected changes:", {
+              teamsChanged: currentTeamsStr !== latestTeamsStr,
+              questionChanged: currentQuestionStr !== latestQuestionStr
+            })
+            handleGameUpdate(latestState)
+          }
         }
       } catch (error) {
         console.error("[v0] Polling error:", error)
       }
-    }, 2000)
+    }, 3000) // Increased to 3 seconds to reduce load
 
     return () => {
       console.log("[v0] Cleaning up subscription and polling")
       unsubscribe()
       clearInterval(pollInterval)
     }
-  }, [gameState.gameCode]) // Removed teams.length to avoid specifying a dependency more specific than its captures
+  }, [gameState.gameCode]) // Only depend on gameCode to avoid stale closures
 
   const handleAdminAccess = () => {
     if (adminPin === "2424") {
@@ -635,16 +670,18 @@ export default function BlackJeopardyApp() {
               )}
 
               <Button
-                onClick={() =>
-                  setGameState((prev) => ({
-                    ...prev,
+                onClick={async () => {
+                  const updatedState = {
+                    ...gameState,
                     currentQuestion: null,
                     buzzerQueue: [],
                     currentAnsweringTeam: null,
                     buzzerEnabled: false,
-                    questionPhase: "waiting",
-                  }))
-                }
+                    questionPhase: "waiting" as const,
+                  }
+                  setGameState(updatedState)
+                  await saveGameState(gameState.gameCode, updatedState)
+                }}
                 className="mt-4 bg-amber-600 text-white hover:bg-amber-700"
               >
                 Close Question
