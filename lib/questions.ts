@@ -22,10 +22,6 @@ export const questions = {
         answer: "What is the 13th Amendment?",
       },
       {
-        question: "This woman refused to give up her bus seat in Montgomery, Alabama in 1955.",
-        answer: "Who is Rosa Parks?",
-      },
-      {
         question: "This organization was founded by W.E.B. Du Bois and others in Niagara Falls in 1905.",
         answer: "What is the Niagara Movement?",
       },
@@ -42,7 +38,7 @@ export const questions = {
         answer: "Who is Robert E. Lee?",
       },
       {
-        question: "This reconstruction era gave former slaves the right to vote.",
+        question: "This reconstruction era amendment gave former slaves the right to vote.",
         answer: "What is the 15th Amendment?",
       },
     ],
@@ -392,10 +388,6 @@ export const questions = {
         answer: "Who is Tiger Woods?",
       },
       {
-        question: "This basketball player wore number 23 and won six NBA championships with the Chicago Bulls.",
-        answer: "Who is Michael Jordan?",
-      },
-      {
         question: "This tennis player won 39 Grand Slam titles, including 23 singles titles.",
         answer: "Who is Serena Williams?",
       },
@@ -416,7 +408,7 @@ export const questions = {
         answer: "Who is Kenny Washington?",
       },
       {
-        question: "This hurdler won gold at the 1992 Olympics and later became an actor.",
+        question: "This track athlete won four gold medals at the 1984 Olympics in Los Angeles.",
         answer: "Who is Carl Lewis?",
       },
     ],
@@ -454,8 +446,7 @@ export const questions = {
         answer: "Who is Hakeem Olajuwon?",
       },
       {
-        question:
-          "This swimmer won eight gold medals at the 2008 Olympics (though he's not Black, this refers to his teammate who won multiple golds).",
+        question: "This swimmer won multiple Olympic medals and broke barriers in swimming.",
         answer: "Who is Cullen Jones?",
       },
       {
@@ -467,10 +458,6 @@ export const questions = {
       {
         question: "This boxer was known as 'The Greatest' and 'The Louisville Lip.'",
         answer: "Who is Muhammad Ali?",
-      },
-      {
-        question: "This tennis player won 23 Grand Slam singles titles, the most in the Open Era.",
-        answer: "Who is Serena Williams?",
       },
       {
         question: "This sprinter set world records in the 100m and 200m at the 1988 Olympics.",
@@ -503,11 +490,6 @@ export const questions = {
         answer: "Who is Jesse Owens?",
       },
       {
-        question:
-          "This track and field athlete won four gold medals at the 1936 Berlin Olympics, defying Nazi ideology.",
-        answer: "Who is Jesse Owens?",
-      },
-      {
         question: "This boxer defeated Muhammad Ali twice and was known for his devastating left hook.",
         answer: "Who is Joe Frazier?",
       },
@@ -530,10 +512,6 @@ export const questions = {
       },
     ],
     1000: [
-      {
-        question: "This baseball player broke the color barrier in Major League Baseball in 1947.",
-        answer: "Who is Jackie Robinson?",
-      },
       {
         question:
           "This jockey won the first Kentucky Derby in 1875 and was one of 13 Black jockeys to win the race in its first 28 runnings.",
@@ -561,10 +539,6 @@ export const questions = {
     200: [
       {
         question: "This 2018 Marvel superhero film was set in the fictional nation of Wakanda.",
-        answer: "What is Black Panther?",
-      },
-      {
-        question: "This 2018 Marvel film featured the fictional African nation of Wakanda.",
         answer: "What is Black Panther?",
       },
       {
@@ -652,11 +626,6 @@ export const questions = {
         answer: "What is Boyz n the Hood?",
       },
       {
-        question:
-          "This 1991 film directed by John Singleton was the first to earn an Oscar nomination for a Black director.",
-        answer: "What is Boyz n the Hood?",
-      },
-      {
         question: "This actor was the first Black man to win an Academy Award for Best Actor.",
         answer: "Who is Sidney Poitier?",
       },
@@ -691,10 +660,6 @@ export const questions = {
         question:
           "This 2020 posthumously released film starring Chadwick Boseman earned him an Academy Award nomination for Best Actor.",
         answer: "What is Ma Rainey's Black Bottom?",
-      },
-      {
-        question: "This 1989 Spike Lee film was controversial for its portrayal of race relations in Brooklyn.",
-        answer: "What is Do the Right Thing?",
       },
       {
         question: "This director created 'She's Gotta Have It' and founded 40 Acres and a Mule Filmworks.",
@@ -748,10 +713,6 @@ export const questions = {
         answer: "Who is Aretha Franklin?",
       },
       {
-        question: 'This "Queen of Soul" sang "Respect" and "Natural Woman."',
-        answer: "Who is Aretha Franklin?",
-      },
-      {
         question: "This singer was known as the 'Godfather of Soul' and 'Mr. Dynamite.'",
         answer: "Who is James Brown?",
       },
@@ -766,10 +727,6 @@ export const questions = {
       {
         question: "This rapper's album 'The Chronic' helped popularize West Coast hip-hop.",
         answer: "Who is Dr. Dre?",
-      },
-      {
-        question: "This singer was known as the 'Queen of Soul.'",
-        answer: "Who is Aretha Franklin?",
       },
       {
         question: "This guitarist was known for playing his instrument left-handed and upside down.",
@@ -792,10 +749,6 @@ export const questions = {
       {
         question: 'This jazz musician was known as "Satchmo" and popularized scat singing.',
         answer: "Who is Louis Armstrong?",
-      },
-      {
-        question: "This jazz pianist and composer wrote 'Take Five' and led a famous quartet.",
-        answer: "Who is Dave Brubeck?",
       },
       {
         question: "This singer was known as the 'Empress of the Blues' and influenced many later artists.",
@@ -830,10 +783,6 @@ export const questions = {
       {
         question: "This record label founded by Berry Gordy Jr. was known as 'Hitsville U.S.A.'",
         answer: "What is Motown?",
-      },
-      {
-        question: "This Motown record label was founded by Berry Gordy Jr. in Detroit.",
-        answer: "What is Motown Records?",
       },
       {
         question: "This jazz pianist composed 'Round Midnight' and 'Straight, No Chaser.'",
@@ -995,12 +944,19 @@ export const doubleJeopardyQuestions = [
   },
 ]
 
+// Fixed function - removed any usedQuestions logic and simplified
 export function getRandomQuestion(category: string, points: number) {
   const categoryQuestions = questions[category as keyof typeof questions]
-  if (!categoryQuestions) return null
+  if (!categoryQuestions) {
+    console.warn(`Category ${category} not found`)
+    return null
+  }
 
   const pointQuestions = categoryQuestions[points as keyof typeof categoryQuestions]
-  if (!pointQuestions || !Array.isArray(pointQuestions)) return null
+  if (!pointQuestions || !Array.isArray(pointQuestions)) {
+    console.warn(`No questions found for ${category}-${points}`)
+    return null
+  }
 
   const randomIndex = Math.floor(Math.random() * pointQuestions.length)
   return pointQuestions[randomIndex]
