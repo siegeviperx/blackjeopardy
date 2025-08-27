@@ -7,36 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Users, Trophy, Zap } from "lucide-react"
 import { type questions, getRandomQuestion } from "@/lib/questions"
-
-function saveGameState(gameCode: string, gameState: any) {
-  try {
-    localStorage.setItem(`game_${gameCode}`, JSON.stringify(gameState))
-  } catch (error) {
-    console.error("Error saving game state:", error)
-  }
-}
-
-function loadGameState(gameCode: string) {
-  try {
-    const stored = localStorage.getItem(`game_${gameCode}`)
-    return stored ? JSON.parse(stored) : null
-  } catch (error) {
-    console.error("Error loading game state:", error)
-    return null
-  }
-}
-
-function subscribeToGameUpdates(gameCode: string, callback: (gameState: any) => void) {
-  // Simple polling fallback
-  const interval = setInterval(() => {
-    const gameState = loadGameState(gameCode)
-    if (gameState) {
-      callback(gameState)
-    }
-  }, 2000)
-
-  return () => clearInterval(interval)
-}
+import { saveGameState, loadGameState, subscribeToGameUpdates } from "@/lib/game-sync"
 
 type GameState = {
   gameCode: string
@@ -54,6 +25,9 @@ type GameState = {
   buzzerQueue: string[]
   gameActive: boolean
   selectedTeam: string
+  currentAnsweringTeam: string | null
+  buzzerEnabled: boolean
+  questionPhase: "waiting" | "answering" | "complete"
 }
 
 const initialGameState: GameState = {
@@ -66,6 +40,9 @@ const initialGameState: GameState = {
   buzzerQueue: [],
   gameActive: false,
   selectedTeam: "",
+  currentAnsweringTeam: null,
+  buzzerEnabled: false,
+  questionPhase: "waiting",
 }
 
 export default function BlackJeopardyApp() {
@@ -208,7 +185,6 @@ export default function BlackJeopardyApp() {
       await saveGameState(gameState.gameCode, updatedState)
 
       setTeamName("")
-      console.log("Team added successfully:", name)
     } catch (error) {
       console.error("Error adding team:", error)
     }
@@ -219,28 +195,29 @@ export default function BlackJeopardyApp() {
     const questionData = gameState.gameBoard[key]
 
     if (!questionData || questionData.used) {
-      console.log("Question already used or not found:", key)
+      console.log("Question not available or already used")
       return
     }
 
     try {
-      console.log("Selecting question:", key)
-      const finalValue = questionData.isDoubleJeopardy ? value * 2 : value
+      console.log("Selecting question:", category, value)
 
       const updatedState = {
         ...gameState,
         currentQuestion: {
-          question: questionData.question,
-          answer: questionData.answer,
+          ...questionData,
           category,
-          value: finalValue,
-          isDoubleJeopardy: questionData.isDoubleJeopardy,
+          value: questionData.isDoubleJeopardy ? value * 2 : value,
+          isDoubleJeopardy: questionData.isDoubleJeopardy || false,
         },
         gameBoard: {
           ...gameState.gameBoard,
           [key]: { ...questionData, used: true },
         },
         buzzerQueue: [],
+        currentAnsweringTeam: null,
+        buzzerEnabled: true,
+        questionPhase: "waiting",
       }
 
       setGameState(updatedState)
@@ -251,18 +228,70 @@ export default function BlackJeopardyApp() {
   }
 
   const buzzIn = async (teamName: string) => {
-    if (gameState.buzzerQueue.includes(teamName)) return
+    if (!gameState.buzzerEnabled || gameState.buzzerQueue.includes(teamName) || gameState.currentAnsweringTeam) return
 
     try {
       const updatedState = {
         ...gameState,
         buzzerQueue: [...gameState.buzzerQueue, teamName],
+        currentAnsweringTeam: gameState.buzzerQueue.length === 0 ? teamName : gameState.currentAnsweringTeam,
+        questionPhase: gameState.buzzerQueue.length === 0 ? ("answering" as const) : gameState.questionPhase,
+        buzzerEnabled: gameState.buzzerQueue.length === 0 ? false : gameState.buzzerEnabled,
       }
 
       setGameState(updatedState)
       await saveGameState(gameState.gameCode, updatedState)
     } catch (error) {
       console.error("Error buzzing in:", error)
+    }
+  }
+
+  const markAnswerCorrect = async (teamName: string) => {
+    if (!gameState.currentQuestion) return
+
+    try {
+      const updatedState = {
+        ...gameState,
+        scores: {
+          ...gameState.scores,
+          [teamName]: (gameState.scores[teamName] || 0) + gameState.currentQuestion.value,
+        },
+        currentQuestion: null,
+        buzzerQueue: [],
+        currentAnsweringTeam: null,
+        buzzerEnabled: false,
+        questionPhase: "complete" as const,
+      }
+
+      setGameState(updatedState)
+      await saveGameState(gameState.gameCode, updatedState)
+    } catch (error) {
+      console.error("Error marking answer correct:", error)
+    }
+  }
+
+  const markAnswerWrong = async (teamName: string) => {
+    if (!gameState.currentQuestion) return
+
+    try {
+      const updatedState = {
+        ...gameState,
+        scores: {
+          ...gameState.scores,
+          [teamName]: (gameState.scores[teamName] || 0) - gameState.currentQuestion.value,
+        },
+        currentAnsweringTeam: null,
+        buzzerEnabled: gameState.teams.length > gameState.buzzerQueue.length,
+        questionPhase:
+          gameState.teams.length > gameState.buzzerQueue.length ? ("waiting" as const) : ("complete" as const),
+        currentQuestion: gameState.teams.length > gameState.buzzerQueue.length ? gameState.currentQuestion : null,
+        buzzerQueue: gameState.teams.length > gameState.buzzerQueue.length ? gameState.buzzerQueue : [],
+      }
+
+      setGameState(updatedState)
+      await saveGameState(gameState.gameCode, updatedState)
+    } catch (error) {
+      console.error("Error marking answer wrong:", error)
     }
   }
 
@@ -276,6 +305,9 @@ export default function BlackJeopardyApp() {
         },
         currentQuestion: null,
         buzzerQueue: [],
+        currentAnsweringTeam: null,
+        buzzerEnabled: false,
+        questionPhase: "complete" as const,
       }
 
       setGameState(updatedState)
@@ -289,13 +321,21 @@ export default function BlackJeopardyApp() {
     if (!gameState.gameCode) return
 
     const handleGameUpdate = (updatedState: GameState) => {
-      console.log("Received game update:", updatedState)
-      setGameState(updatedState)
+      console.log("Received real-time game update:", updatedState)
+      // Preserve current view to prevent unwanted view changes
+      setGameState((prevState) => ({
+        ...updatedState,
+        currentView: prevState.currentView,
+      }))
     }
 
+    console.log("Setting up real-time subscription for game:", gameState.gameCode)
     const unsubscribe = subscribeToGameUpdates(gameState.gameCode, handleGameUpdate)
 
-    return () => unsubscribe()
+    return () => {
+      console.log("Cleaning up subscription")
+      unsubscribe()
+    }
   }, [gameState.gameCode])
 
   const handleAdminAccess = () => {
@@ -456,7 +496,7 @@ export default function BlackJeopardyApp() {
                       className="flex justify-between items-center bg-white p-2 rounded border border-amber-200"
                     >
                       <span className="text-amber-800 font-medium">{team}</span>
-                      <Badge variant="secondary" className="bg-amber-200 text-amber-800">
+                      <Badge variant="secondary" className="bg-amber-600 text-white">
                         {gameState.scores[team] || 0} pts
                       </Badge>
                     </div>
@@ -495,6 +535,21 @@ export default function BlackJeopardyApp() {
                 {gameState.currentQuestion.isDoubleJeopardy && (
                   <Badge className="bg-red-600 text-white">⚡ DOUBLE JEOPARDY!</Badge>
                 )}
+                <Badge
+                  className={`${
+                    gameState.questionPhase === "waiting"
+                      ? "bg-blue-600"
+                      : gameState.questionPhase === "answering"
+                        ? "bg-orange-600"
+                        : "bg-green-600"
+                  } text-white`}
+                >
+                  {gameState.questionPhase === "waiting"
+                    ? "Waiting for Buzzers"
+                    : gameState.questionPhase === "answering"
+                      ? "Team Answering"
+                      : "Complete"}
+                </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
@@ -511,31 +566,62 @@ export default function BlackJeopardyApp() {
               </div>
 
               {gameState.buzzerQueue.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-medium text-amber-900">Award Points:</h4>
+                <div className="mb-4">
+                  <h4 className="font-medium text-amber-900 mb-2">Buzzer Queue:</h4>
                   <div className="flex flex-wrap gap-2">
-                    {gameState.buzzerQueue.map((team) => (
-                      <div key={team} className="flex gap-2">
-                        <Button
-                          onClick={() => awardPoints(team, gameState.currentQuestion!.value)}
-                          className="bg-green-600 text-white hover:bg-green-700"
-                        >
-                          ✓ {team} (+{gameState.currentQuestion!.value})
-                        </Button>
-                        <Button
-                          onClick={() => awardPoints(team, -gameState.currentQuestion!.value)}
-                          className="bg-red-600 text-white hover:bg-red-700"
-                        >
-                          ✗ {team} (-{gameState.currentQuestion!.value})
-                        </Button>
-                      </div>
+                    {gameState.buzzerQueue.map((team, index) => (
+                      <Badge
+                        key={team}
+                        className={`${
+                          team === gameState.currentAnsweringTeam ? "bg-orange-600" : "bg-amber-600"
+                        } text-white`}
+                      >
+                        {index + 1}. {team} {team === gameState.currentAnsweringTeam ? "(Answering)" : ""}
+                      </Badge>
                     ))}
                   </div>
                 </div>
               )}
 
+              {gameState.currentAnsweringTeam && (
+                <div className="space-y-2 mb-4">
+                  <h4 className="font-medium text-amber-900">{gameState.currentAnsweringTeam} is answering:</h4>
+                  <div className="flex gap-4">
+                    <Button
+                      onClick={() => markAnswerCorrect(gameState.currentAnsweringTeam!)}
+                      className="bg-green-600 text-white hover:bg-green-700 text-lg px-8 py-3"
+                    >
+                      ✓ CORRECT (+{gameState.currentQuestion.value})
+                    </Button>
+                    <Button
+                      onClick={() => markAnswerWrong(gameState.currentAnsweringTeam!)}
+                      className="bg-red-600 text-white hover:bg-red-700 text-lg px-8 py-3"
+                    >
+                      ✗ WRONG (-{gameState.currentQuestion.value})
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {gameState.buzzerEnabled && !gameState.currentAnsweringTeam && (
+                <div className="mb-4">
+                  <p className="text-amber-700">
+                    <strong>Waiting for teams to buzz in...</strong>
+                  </p>
+                </div>
+              )}
+
               <Button
-                onClick={() => setGameState((prev) => ({ ...prev, currentQuestion: null, buzzerQueue: [] }))}
+                onClick={() =>
+                  setGameState((prev) => ({
+                    ...prev,
+                    currentQuestion: null,
+                    buzzerQueue: [],
+                    currentAnsweringTeam: null,
+                    buzzerEnabled: false,
+                    questionPhase: "waiting",
+                  }))
+                }
                 className="mt-4 bg-amber-600 text-white hover:bg-amber-700"
               >
                 Close Question
@@ -696,6 +782,21 @@ export default function BlackJeopardyApp() {
                 {gameState.currentQuestion.isDoubleJeopardy && (
                   <Badge className="bg-red-600 text-white">⚡ DOUBLE JEOPARDY!</Badge>
                 )}
+                <Badge
+                  className={`${
+                    gameState.questionPhase === "waiting"
+                      ? "bg-blue-600"
+                      : gameState.questionPhase === "answering"
+                        ? "bg-orange-600"
+                        : "bg-green-600"
+                  } text-white`}
+                >
+                  {gameState.questionPhase === "waiting"
+                    ? "Waiting for Buzzers"
+                    : gameState.questionPhase === "answering"
+                      ? "Team Answering"
+                      : "Complete"}
+                </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="p-6">
@@ -709,10 +810,28 @@ export default function BlackJeopardyApp() {
               <div className="text-center">
                 <Button
                   onClick={() => buzzIn(gameState.selectedTeam)}
-                  disabled={gameState.buzzerQueue.includes(gameState.selectedTeam)}
-                  className="bg-red-600 text-white hover:bg-red-700 text-xl py-6 px-12 rounded-full font-bold"
+                  disabled={
+                    !gameState.buzzerEnabled ||
+                    gameState.buzzerQueue.includes(gameState.selectedTeam) ||
+                    gameState.currentAnsweringTeam === gameState.selectedTeam
+                  }
+                  className={`text-xl py-6 px-12 rounded-full font-bold ${
+                    gameState.currentAnsweringTeam === gameState.selectedTeam
+                      ? "bg-orange-600 text-white"
+                      : gameState.buzzerQueue.includes(gameState.selectedTeam)
+                        ? "bg-gray-600 text-white cursor-not-allowed"
+                        : !gameState.buzzerEnabled
+                          ? "bg-gray-400 text-gray-600 cursor-not-allowed"
+                          : "bg-red-600 text-white hover:bg-red-700"
+                  }`}
                 >
-                  {gameState.buzzerQueue.includes(gameState.selectedTeam) ? "BUZZED IN!" : "BUZZ IN!"}
+                  {gameState.currentAnsweringTeam === gameState.selectedTeam
+                    ? "YOU'RE ANSWERING!"
+                    : gameState.buzzerQueue.includes(gameState.selectedTeam)
+                      ? "BUZZED IN!"
+                      : !gameState.buzzerEnabled
+                        ? "BUZZER DISABLED"
+                        : "BUZZ IN!"}
                 </Button>
 
                 {gameState.buzzerQueue.length > 0 && (
@@ -722,13 +841,24 @@ export default function BlackJeopardyApp() {
                       {gameState.buzzerQueue.map((team, index) => (
                         <Badge
                           key={team}
-                          className={`${team === gameState.selectedTeam ? "bg-red-600" : "bg-amber-600"} text-white`}
+                          className={`${
+                            team === gameState.currentAnsweringTeam
+                              ? "bg-orange-600"
+                              : team === gameState.selectedTeam
+                                ? "bg-red-600"
+                                : "bg-amber-600"
+                          } text-white`}
                         >
                           {index + 1}. {team}
+                          {team === gameState.currentAnsweringTeam ? " (Answering)" : ""}
                         </Badge>
                       ))}
                     </div>
                   </div>
+                )}
+
+                {gameState.questionPhase === "waiting" && !gameState.buzzerEnabled && (
+                  <p className="text-amber-200 mt-4">Waiting for next question...</p>
                 )}
               </div>
             </CardContent>
