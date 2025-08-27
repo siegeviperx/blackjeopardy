@@ -1,57 +1,112 @@
 import { supabase } from "./supabase/client"
 
-export async function saveGameState(gameCode: string, gameState: any) {
+// Test connection on load
+console.log("[DEBUG] Testing Supabase connection...")
+supabase.from('game_sessions').select('count').limit(1).then(({ data, error }) => {
+  console.log("[DEBUG] Supabase connection test:", error ? `❌ ${error.message}` : "✅ Connected")
+  if (error) console.error("[DEBUG] Connection error details:", error)
+})
+
+// Test connection
+supabase.from('game_sessions').select('count').limit(1).then(({ data, error }) => {
+  console.log("[DEBUG] Supabase connection test:", error ? `❌ ${error.message}` : "✅ Connected")
+})
+
+export interface GameState {
+  gameCode: string
+  currentView: "home" | "host" | "join" | "admin" | "game"
+  gameBoard: Record<string, { question: string; answer: string; used: boolean; isDoubleJeopardy?: boolean }>
+  currentQuestion: {
+    question: string
+    answer: string
+    category: string
+    value: number
+    isDoubleJeopardy?: boolean
+  } | null
+  teams: string[]
+  scores: Record<string, number>
+  buzzerQueue: string[]
+  gameActive: boolean
+  selectedTeam: string
+  currentAnsweringTeam: string | null
+  buzzerEnabled: boolean
+  questionPhase: "waiting" | "answering" | "complete" | "reading"
+  buzzedTeam: string | null
+  availableTeams: string[]
+}
+
+export async function saveGameState(gameCode: string, gameState: GameState) {
+  console.log("[DEBUG] Attempting to save game state for:", gameCode)
+  console.log("[DEBUG] Teams in state:", gameState.teams)
+  console.log("[DEBUG] Current question:", gameState.currentQuestion ? "Present" : "None")
+  
   try {
-    // Save to Supabase database for cross-device sync
-    const { error } = await supabase.from("game_sessions").upsert({
-      game_code: gameCode,
-      game_state: gameState,
-      updated_at: new Date().toISOString(),
-    })
+    const { data, error } = await supabase
+      .from("game_sessions")
+      .upsert({
+        game_code: gameCode,
+        game_state: gameState,
+        updated_at: new Date().toISOString(),
+      })
+      .select()
 
     if (error) {
-      console.error("Supabase save error:", error)
-      // Fallback to localStorage
-      localStorage.setItem(`game-${gameCode}`, JSON.stringify(gameState))
+      console.error("[DEBUG] Supabase save error:", error)
+      console.log("[DEBUG] Falling back to localStorage")
+      // Use consistent key format
+      localStorage.setItem(`game_${gameCode}`, JSON.stringify(gameState))
+      return false
     } else {
-      console.log("Game state saved to Supabase for code:", gameCode)
-      // Also save to localStorage as backup
-      localStorage.setItem(`game-${gameCode}`, JSON.stringify(gameState))
+      console.log("[DEBUG] Successfully saved to Supabase:", data)
+      // Also save to localStorage as backup with consistent key
+      localStorage.setItem(`game_${gameCode}`, JSON.stringify(gameState))
+      return true
     }
   } catch (error) {
-    console.error("Error saving game state:", error)
-    // Fallback to localStorage
-    localStorage.setItem(`game-${gameCode}`, JSON.stringify(gameState))
+    console.error("[DEBUG] Exception during save:", error)
+    console.log("[DEBUG] Falling back to localStorage")
+    localStorage.setItem(`game_${gameCode}`, JSON.stringify(gameState))
+    return false
   }
 }
 
-export async function loadGameState(gameCode: string) {
+export async function loadGameState(gameCode: string): Promise<GameState | null> {
+  console.log("[DEBUG] Loading game state for:", gameCode)
+  
   try {
-    // Try to load from Supabase first
-    const { data, error } = await supabase.from("game_sessions").select("game_state").eq("game_code", gameCode).single()
+    const { data, error } = await supabase
+      .from("game_sessions")
+      .select("game_state")
+      .eq("game_code", gameCode)
+      .single()
 
     if (error || !data) {
-      console.log("No Supabase data found, checking localStorage")
-      // Fallback to localStorage
-      const storedState = localStorage.getItem(`game-${gameCode}`)
-      return storedState ? JSON.parse(storedState) : null
+      console.log("[DEBUG] No data in Supabase, checking localStorage")
+      // Use consistent key format
+      const stored = localStorage.getItem(`game_${gameCode}`)
+      const result = stored ? JSON.parse(stored) : null
+      console.log("[DEBUG] localStorage result:", result ? "Found" : "Not found")
+      return result
     }
 
-    console.log("Game state loaded from Supabase for code:", gameCode)
-    return data.game_state
+    console.log("[DEBUG] Loaded from Supabase:", data.game_state.teams?.length || 0, "teams")
+    return data.game_state as GameState
   } catch (error) {
-    console.error("Error loading game state:", error)
-    // Fallback to localStorage
-    const storedState = localStorage.getItem(`game-${gameCode}`)
-    return storedState ? JSON.parse(storedState) : null
+    console.error("[DEBUG] Load error:", error)
+    const stored = localStorage.getItem(`game_${gameCode}`)
+    const result = stored ? JSON.parse(stored) : null
+    console.log("[DEBUG] localStorage fallback:", result ? "Found" : "Not found")
+    return result
   }
 }
 
-export function subscribeToGameUpdates(gameCode: string, callback: (gameState: any) => void) {
-  console.log("Setting up real-time subscription for game:", gameCode)
-
+export function subscribeToGameUpdates(gameCode: string, callback: (gameState: GameState) => void) {
+  console.log("[DEBUG] Setting up real-time subscription for:", gameCode)
+  
+  let lastUpdateTime = 0
+  
   const channel = supabase
-    .channel(`game-${gameCode}`)
+    .channel(`game_${gameCode}`)
     .on(
       "postgres_changes",
       {
@@ -61,30 +116,37 @@ export function subscribeToGameUpdates(gameCode: string, callback: (gameState: a
         filter: `game_code=eq.${gameCode}`,
       },
       (payload) => {
-        console.log("Real-time update received:", payload)
-        if (payload.new && payload.new.game_state) {
-          callback(payload.new.game_state)
+        console.log("[DEBUG] Real-time update received:", payload.eventType)
+        console.log("[DEBUG] New state teams:", payload.new?.game_state?.teams || "No teams")
+        
+        if (payload.new && "game_state" in payload.new) {
+          const newState = payload.new.game_state as GameState
+          const updateTime = Date.now()
+          
+          // Prevent duplicate callbacks within 500ms
+          if (updateTime - lastUpdateTime > 500) {
+            console.log("[DEBUG] Calling callback with new state")
+            lastUpdateTime = updateTime
+            callback(newState)
+          } else {
+            console.log("[DEBUG] Skipping duplicate update")
+          }
+        } else {
+          console.log("[DEBUG] Payload missing game_state")
         }
       },
     )
-    .subscribe()
-
-  // Fallback polling for localStorage updates (same-device tabs)
-  const interval = setInterval(async () => {
-    try {
-      const currentState = await loadGameState(gameCode)
-      if (currentState) {
-        callback(currentState)
+    .subscribe((status) => {
+      console.log("[DEBUG] Subscription status:", status)
+      if (status === 'SUBSCRIBED') {
+        console.log("[DEBUG] Successfully subscribed to real-time updates")
+      } else if (status === 'CHANNEL_ERROR') {
+        console.log("[DEBUG] Real-time subscription failed - will rely on localStorage")
       }
-    } catch (error) {
-      console.error("Error in polling update:", error)
-    }
-  }, 3000) // Poll every 3 seconds as fallback
+    })
 
-  // Return cleanup function
   return () => {
-    console.log("Cleaning up subscriptions for game:", gameCode)
+    console.log("[DEBUG] Cleaning up subscription")
     supabase.removeChannel(channel)
-    clearInterval(interval)
   }
 }
