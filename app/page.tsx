@@ -67,29 +67,53 @@ export default function BlackJeopardyApp() {
   }
 
   const initializeGameBoard = () => {
-    const board: Record<string, { question: string; answer: string; used: boolean; isDoubleJeopardy?: boolean }> = {}
-    const categories = ["history", "trivia", "sports", "film", "music"]
-    const values = [200, 400, 600, 800, 1000]
+  const board: Record<string, { question: string; answer: string; used: boolean; isDoubleJeopardy?: boolean }> = {}
+  const categories = ["history", "trivia", "sports", "film", "music"]
+  const values = [200, 400, 600, 800, 1000]
 
-    categories.forEach((category) => {
-      values.forEach((value) => {
-        const questionData = getRandomQuestion(category as keyof typeof questions, value)
-        if (questionData) {
-          const key = `${category}-${value}`
-          board[key] = {
-            question: questionData.question,
-            answer: questionData.answer,
-            used: false,
-          }
-        } else {
-          console.warn(`No question found for ${category}-${value}`)
-          const key = `${category}-${value}`
-          board[key] = {
-            question: `Sample question for ${category} ${value}`,
-            answer: `Sample answer for ${category} ${value}`,
-            used: false,
-          }
+  categories.forEach((category) => {
+    values.forEach((value) => {
+      const questionData = getRandomQuestion(category as keyof typeof questions, value)
+      if (questionData) {
+        const key = `${category}-${value}`
+        board[key] = {
+          question: questionData.question,
+          answer: questionData.answer,
+          used: false,
         }
+      } else {
+        console.warn(`No question found for ${category}-${value}`)
+        const key = `${category}-${value}`
+        board[key] = {
+          question: `Sample question for ${category} ${value}`,
+          answer: `Sample answer for ${category} ${value}`,
+          used: false,
+        }
+      }
+    })
+  })
+
+  // Only add Double Jeopardy on client-side to avoid hydration mismatch
+  if (typeof window !== 'undefined') {
+    const boardKeys = Object.keys(board)
+    const numDoubleJeopardy = Math.floor(Math.random() * 2) + 2
+    const selectedKeys = []
+
+    for (let i = 0; i < numDoubleJeopardy && i < boardKeys.length; i++) {
+      let randomKey
+      do {
+        randomKey = boardKeys[Math.floor(Math.random() * boardKeys.length)]
+      } while (selectedKeys.includes(randomKey))
+
+      selectedKeys.push(randomKey)
+      board[randomKey].isDoubleJeopardy = true
+    }
+
+    console.log(`Initialized game board with ${numDoubleJeopardy} Double Jeopardy questions`)
+  }
+
+  return board
+}}
       })
     })
 
