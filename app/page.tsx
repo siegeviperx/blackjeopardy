@@ -27,7 +27,9 @@ type GameState = {
   selectedTeam: string
   currentAnsweringTeam: string | null
   buzzerEnabled: boolean
-  questionPhase: "waiting" | "answering" | "complete"
+  questionPhase: "waiting" | "answering" | "complete" | "reading"
+  buzzedTeam: string | null
+  availableTeams: string[]
 }
 
 const initialGameState: GameState = {
@@ -43,6 +45,8 @@ const initialGameState: GameState = {
   currentAnsweringTeam: null,
   buzzerEnabled: false,
   questionPhase: "waiting",
+  buzzedTeam: null,
+  availableTeams: [],
 }
 
 export default function BlackJeopardyApp() {
@@ -120,6 +124,7 @@ export default function BlackJeopardyApp() {
         currentView: "host",
         gameBoard: board,
         gameActive: true,
+        availableTeams: [],
       }
 
       setGameState(newGameState)
@@ -165,28 +170,27 @@ export default function BlackJeopardyApp() {
     }
   }
 
-  const addTeam = async (name: string) => {
-    if (!name.trim() || gameState.teams.includes(name)) {
-      alert("Please enter a valid team name that hasn't been used")
-      return
-    }
+  const addTeam = async () => {
+    if (!teamName.trim() || gameState.teams.includes(teamName)) return
 
     try {
-      console.log("Adding team:", name)
+      console.log("[v0] Adding team:", teamName, "to game:", gameState.gameCode)
       const updatedState = {
         ...gameState,
-        teams: [...gameState.teams, name],
-        scores: { ...gameState.scores, [name]: 0 },
-        selectedTeam: name,
+        teams: [...gameState.teams, teamName],
+        scores: { ...gameState.scores, [teamName]: 0 },
+        selectedTeam: teamName,
         currentView: gameState.currentView === "join" ? ("game" as const) : gameState.currentView,
       }
 
+      console.log("[v0] Updated state with new team:", updatedState.teams)
       setGameState(updatedState)
       await saveGameState(gameState.gameCode, updatedState)
+      console.log("[v0] Team saved to database")
 
       setTeamName("")
     } catch (error) {
-      console.error("Error adding team:", error)
+      console.error("[v0] Error adding team:", error)
     }
   }
 
@@ -194,36 +198,28 @@ export default function BlackJeopardyApp() {
     const key = `${category}-${value}`
     const questionData = gameState.gameBoard[key]
 
-    if (!questionData || questionData.used) {
-      console.log("Question not available or already used")
-      return
-    }
+    if (!questionData || questionData.used) return
 
     try {
-      console.log("Selecting question:", category, value)
-
+      console.log("[v0] Selecting question:", key, "for game:", gameState.gameCode)
       const updatedState = {
         ...gameState,
-        currentQuestion: {
-          ...questionData,
-          category,
-          value: questionData.isDoubleJeopardy ? value * 2 : value,
-          isDoubleJeopardy: questionData.isDoubleJeopardy || false,
-        },
+        currentQuestion: questionData,
         gameBoard: {
           ...gameState.gameBoard,
           [key]: { ...questionData, used: true },
         },
-        buzzerQueue: [],
-        currentAnsweringTeam: null,
-        buzzerEnabled: true,
-        questionPhase: "waiting",
+        questionPhase: "reading" as const,
+        buzzedTeam: null,
+        availableTeams: [...gameState.teams],
       }
 
+      console.log("[v0] Question selected, updating all devices")
       setGameState(updatedState)
       await saveGameState(gameState.gameCode, updatedState)
+      console.log("[v0] Question state saved to database")
     } catch (error) {
-      console.error("Error selecting question:", error)
+      console.error("[v0] Error selecting question:", error)
     }
   }
 
@@ -318,25 +314,48 @@ export default function BlackJeopardyApp() {
   }
 
   useEffect(() => {
-    if (!gameState.gameCode) return
+    if (!gameState.gameCode) {
+      console.log("[v0] No game code, skipping subscription setup")
+      return
+    }
+
+    console.log("[v0] Setting up real-time subscription for game:", gameState.gameCode)
 
     const handleGameUpdate = (updatedState: GameState) => {
-      console.log("Received real-time game update:", updatedState)
+      console.log("[v0] Received real-time game update:", updatedState)
+      console.log("[v0] Current teams:", gameState.teams, "Updated teams:", updatedState.teams)
+
       // Preserve current view to prevent unwanted view changes
-      setGameState((prevState) => ({
-        ...updatedState,
-        currentView: prevState.currentView,
-      }))
+      setGameState((prevState) => {
+        console.log("[v0] Updating state from:", prevState.teams, "to:", updatedState.teams)
+        return {
+          ...updatedState,
+          currentView: prevState.currentView,
+        }
+      })
     }
 
-    console.log("Setting up real-time subscription for game:", gameState.gameCode)
     const unsubscribe = subscribeToGameUpdates(gameState.gameCode, handleGameUpdate)
 
+    // Also poll for updates every 2 seconds as additional fallback
+    const pollInterval = setInterval(async () => {
+      try {
+        const latestState = await loadGameState(gameState.gameCode)
+        if (latestState && JSON.stringify(latestState.teams) !== JSON.stringify(gameState.teams)) {
+          console.log("[v0] Polling detected team changes:", latestState.teams)
+          handleGameUpdate(latestState)
+        }
+      } catch (error) {
+        console.error("[v0] Polling error:", error)
+      }
+    }, 2000)
+
     return () => {
-      console.log("Cleaning up subscription")
+      console.log("[v0] Cleaning up subscription and polling")
       unsubscribe()
+      clearInterval(pollInterval)
     }
-  }, [gameState.gameCode])
+  }, [gameState.gameCode]) // Removed teams.length to avoid specifying a dependency more specific than its captures
 
   const handleAdminAccess = () => {
     if (adminPin === "2424") {
@@ -541,14 +560,18 @@ export default function BlackJeopardyApp() {
                       ? "bg-blue-600"
                       : gameState.questionPhase === "answering"
                         ? "bg-orange-600"
-                        : "bg-green-600"
+                        : gameState.questionPhase === "complete"
+                          ? "bg-green-600"
+                          : "bg-gray-600"
                   } text-white`}
                 >
                   {gameState.questionPhase === "waiting"
                     ? "Waiting for Buzzers"
                     : gameState.questionPhase === "answering"
                       ? "Team Answering"
-                      : "Complete"}
+                      : gameState.questionPhase === "complete"
+                        ? "Complete"
+                        : "Reading"}
                 </Badge>
               </CardTitle>
             </CardHeader>
@@ -720,7 +743,7 @@ export default function BlackJeopardyApp() {
                       className="bg-white border-amber-300"
                     />
                     <Button
-                      onClick={() => addTeam(teamName)}
+                      onClick={() => addTeam()}
                       className="w-full bg-amber-600 text-white hover:bg-amber-700"
                       disabled={!teamName.trim()}
                     >
@@ -788,14 +811,18 @@ export default function BlackJeopardyApp() {
                       ? "bg-blue-600"
                       : gameState.questionPhase === "answering"
                         ? "bg-orange-600"
-                        : "bg-green-600"
+                        : gameState.questionPhase === "complete"
+                          ? "bg-green-600"
+                          : "bg-gray-600"
                   } text-white`}
                 >
                   {gameState.questionPhase === "waiting"
                     ? "Waiting for Buzzers"
                     : gameState.questionPhase === "answering"
                       ? "Team Answering"
-                      : "Complete"}
+                      : gameState.questionPhase === "complete"
+                        ? "Complete"
+                        : "Reading"}
                 </Badge>
               </CardTitle>
             </CardHeader>
