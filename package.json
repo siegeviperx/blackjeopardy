@@ -12,7 +12,16 @@
     "next": "14.2.25",
     "react": "^19",
     "react-dom": "^19",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@supabase/supabase-js": "^2.39.0",
+    "@supabase/auth-helpers-nextjs": "^0.8.7",
+    "lucide-react": "^0.454.0",
+    "@radix-ui/react-slot": "^1.1.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.6.0",
+    "@radix-ui/react-dialog": "^1.1.4",
+    "@radix-ui/react-separator": "^1.1.1"
   },
   "devDependencies": {
     "@types/node": "^22",
