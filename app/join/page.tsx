@@ -1,339 +1,455 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import Link from "next/link"
-import { useSearchParams } from "next/navigation"
-import questions from "@/lib/questions"
-import { saveToStorage, loadFromStorage, clearStorage } from "@/lib/storage"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Users, Trophy, Zap } from "lucide-react"
+import { type questions, getRandomQuestion } from "@/lib/questions"
+import { saveGameState, loadGameState, subscribeToGameUpdates } from "@/lib/game-sync"
 
-interface GameInfo {
-  gameId: string
-  teamName: string
-  score: number
-  buzzedIn: boolean
+type GameState = {
+  gameCode: string
+  currentView: "home" | "host" | "join" | "admin" | "game"
+  gameBoard: Record<string, { question: string; answer: string; used: boolean; isDoubleJeopardy?: boolean }>
+  currentQuestion: {
+    question: string
+    answer: string
+    category: string
+    value: number
+    isDoubleJeopardy?: boolean
+  } | null
+  teams: string[]
+  scores: Record<string, number>
+  buzzerQueue: string[]
+  gameActive: boolean
+  selectedTeam: string
+  currentAnsweringTeam: string | null
+  buzzerEnabled: boolean
+  questionPhase: "waiting" | "answering" | "complete" | "reading"
+  buzzedTeam: string | null
+  availableTeams: string[]
 }
 
-export default function JoinPage() {
-  const searchParams = useSearchParams()
-  const gameIdFromUrl = searchParams.get("game")
+const initialGameState: GameState = {
+  gameCode: "",
+  currentView: "home",
+  gameBoard: {},
+  currentQuestion: null,
+  teams: [],
+  scores: {},
+  buzzerQueue: [],
+  gameActive: false,
+  selectedTeam: "",
+  currentAnsweringTeam: null,
+  buzzerEnabled: false,
+  questionPhase: "waiting",
+  buzzedTeam: null,
+  availableTeams: [],
+}
 
-  const [gameId, setGameId] = useState(gameIdFromUrl || "")
+export default function BlackJeopardyApp() {
+  const [gameState, setGameState] = useState<GameState>(initialGameState)
+  const [joinCode, setJoinCode] = useState("")
   const [teamName, setTeamName] = useState("")
-  const [gameInfo, setGameInfo] = useState<GameInfo | null>(null)
-  const [joined, setJoined] = useState(false)
+  const [adminPin, setAdminPin] = useState("")
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false)
+  const [showPinPrompt, setShowPinPrompt] = useState(false)
+  const [isClient, setIsClient] = useState(false)
 
-  // Load saved player info
+  // Prevent hydration mismatch by only rendering after client mount
   useEffect(() => {
-    const savedInfo = loadFromStorage("player-info")
-    if (savedInfo) {
-      setGameInfo(savedInfo)
-      setJoined(true)
-    }
+    setIsClient(true)
   }, [])
 
-  // Save player info whenever it changes
-  useEffect(() => {
-    if (gameInfo) {
-      saveToStorage("player-info", gameInfo)
+  const generateSimpleGameCode = () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    let result = ""
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length))
     }
-  }, [gameInfo])
-
-  const joinGame = () => {
-    if (!gameId || !teamName) return
-
-    const newGameInfo: GameInfo = {
-      gameId,
-      teamName,
-      score: 0,
-      buzzedIn: false,
-    }
-
-    setGameInfo(newGameInfo)
-    setJoined(true)
+    return result
   }
 
-  const leaveGame = () => {
-    if (confirm("Are you sure you want to leave the game?")) {
-      clearStorage("player-info")
-      setGameInfo(null)
-      setJoined(false)
-      setGameId("")
+  const initializeGameBoard = () => {
+    const board: Record<string, { question: string; answer: string; used: boolean; isDoubleJeopardy?: boolean }> = {}
+    const categories = ["history", "trivia", "sports", "film", "music"]
+    const values = [200, 400, 600, 800, 1000]
+
+    categories.forEach((category) => {
+      values.forEach((value) => {
+        const questionData = getRandomQuestion(category as keyof typeof questions, value)
+        if (questionData) {
+          const key = `${category}-${value}`
+          board[key] = {
+            question: questionData.question,
+            answer: questionData.answer,
+            used: false,
+          }
+        } else {
+          const key = `${category}-${value}`
+          board[key] = {
+            question: `Sample question for ${category} ${value}`,
+            answer: `Sample answer for ${category} ${value}`,
+            used: false,
+          }
+        }
+      })
+    })
+
+    return board
+  }
+
+  const addDoubleJeopardyQuestions = (board: any) => {
+    if (typeof window !== 'undefined') {
+      const boardKeys = Object.keys(board)
+      const numDoubleJeopardy = Math.floor(Math.random() * 2) + 2
+      const selectedKeys = []
+
+      for (let i = 0; i < numDoubleJeopardy && i < boardKeys.length; i++) {
+        let randomKey
+        do {
+          randomKey = boardKeys[Math.floor(Math.random() * boardKeys.length)]
+        } while (selectedKeys.includes(randomKey))
+
+        selectedKeys.push(randomKey)
+        board[randomKey].isDoubleJeopardy = true
+      }
+      console.log(`Added ${numDoubleJeopardy} Double Jeopardy questions`)
+    }
+    return board
+  }
+
+  const startHostGame = async () => {
+    try {
+      console.log("Starting host game...")
+      const code = generateSimpleGameCode()
+      let board = initializeGameBoard()
+      
+      // Add Double Jeopardy questions only on client side
+      board = addDoubleJeopardyQuestions(board)
+
+      const newGameState: GameState = {
+        ...initialGameState,
+        gameCode: code,
+        currentView: "host",
+        gameBoard: board,
+        gameActive: true,
+        availableTeams: [],
+      }
+
+      setGameState(newGameState)
+      await saveGameState(code, newGameState)
+      console.log("Host game started with code:", code)
+    } catch (error) {
+      console.error("Error starting host game:", error)
+    }
+  }
+
+  const joinGame = async () => {
+    if (!joinCode.trim()) {
+      alert("Please enter a game code")
+      return
+    }
+
+    try {
+      console.log("Attempting to join game with code:", joinCode)
+      const savedState = await loadGameState(joinCode)
+      
+      if (savedState) {
+        setGameState({
+          ...savedState,
+          currentView: "join",
+        })
+        console.log("Successfully joined game:", joinCode)
+      } else {
+        alert("Game not found! Please check the code and try again.")
+        return
+      }
+    } catch (error) {
+      console.error("Error joining game:", error)
+      alert("Failed to join game. Please check the code and try again.")
+    }
+  }
+
+  const addTeam = async () => {
+    if (!teamName.trim() || gameState.teams.includes(teamName)) return
+
+    try {
+      console.log("Adding team:", teamName, "to game:", gameState.gameCode)
+      const updatedState = {
+        ...gameState,
+        teams: [...gameState.teams, teamName],
+        scores: { ...gameState.scores, [teamName]: 0 },
+        selectedTeam: teamName,
+        currentView: "game" as const,
+      }
+
+      setGameState(updatedState)
+      await saveGameState(gameState.gameCode, updatedState)
       setTeamName("")
+    } catch (error) {
+      console.error("Error adding team:", error)
     }
   }
 
-  const buzzIn = () => {
-    if (!gameInfo) return
+  const selectQuestion = async (category: string, value: number) => {
+    const key = `${category}-${value}`
+    const questionData = gameState.gameBoard[key]
 
-    // Add haptic feedback for mobile
-    if (typeof navigator !== "undefined" && navigator.vibrate) {
-      navigator.vibrate(100)
+    if (!questionData || questionData.used) return
+
+    try {
+      const updatedState = {
+        ...gameState,
+        currentQuestion: {
+          question: questionData.question,
+          answer: questionData.answer,
+          category: category,
+          value: value,
+          isDoubleJeopardy: questionData.isDoubleJeopardy
+        },
+        gameBoard: {
+          ...gameState.gameBoard,
+          [key]: { ...questionData, used: true },
+        },
+        questionPhase: "reading" as const,
+        buzzerEnabled: true,
+      }
+
+      setGameState(updatedState)
+      await saveGameState(gameState.gameCode, updatedState)
+    } catch (error) {
+      console.error("Error selecting question:", error)
     }
-
-    setGameInfo((prev) => (prev ? { ...prev, buzzedIn: true } : null))
   }
 
-  if (!joined) {
+  const buzzIn = async (teamName: string) => {
+    if (!gameState.buzzerEnabled || gameState.buzzerQueue.includes(teamName) || gameState.currentAnsweringTeam) return
+
+    try {
+      const updatedState = {
+        ...gameState,
+        buzzerQueue: [...gameState.buzzerQueue, teamName],
+        currentAnsweringTeam: gameState.buzzerQueue.length === 0 ? teamName : gameState.currentAnsweringTeam,
+        questionPhase: gameState.buzzerQueue.length === 0 ? ("answering" as const) : gameState.questionPhase,
+        buzzerEnabled: gameState.buzzerQueue.length === 0 ? false : gameState.buzzerEnabled,
+      }
+
+      setGameState(updatedState)
+      await saveGameState(gameState.gameCode, updatedState)
+    } catch (error) {
+      console.error("Error buzzing in:", error)
+    }
+  }
+
+  const markAnswerCorrect = async (teamName: string) => {
+    if (!gameState.currentQuestion) return
+
+    try {
+      const updatedState = {
+        ...gameState,
+        scores: {
+          ...gameState.scores,
+          [teamName]: (gameState.scores[teamName] || 0) + gameState.currentQuestion.value,
+        },
+        currentQuestion: null,
+        buzzerQueue: [],
+        currentAnsweringTeam: null,
+        buzzerEnabled: false,
+        questionPhase: "complete" as const,
+      }
+
+      setGameState(updatedState)
+      await saveGameState(gameState.gameCode, updatedState)
+    } catch (error) {
+      console.error("Error marking answer correct:", error)
+    }
+  }
+
+  const markAnswerWrong = async (teamName: string) => {
+    if (!gameState.currentQuestion) return
+
+    try {
+      const updatedState = {
+        ...gameState,
+        scores: {
+          ...gameState.scores,
+          [teamName]: (gameState.scores[teamName] || 0) - gameState.currentQuestion.value,
+        },
+        currentAnsweringTeam: null,
+        buzzerEnabled: gameState.teams.length > gameState.buzzerQueue.length,
+        questionPhase:
+          gameState.teams.length > gameState.buzzerQueue.length ? ("waiting" as const) : ("complete" as const),
+        currentQuestion: gameState.teams.length > gameState.buzzerQueue.length ? gameState.currentQuestion : null,
+        buzzerQueue: gameState.teams.length > gameState.buzzerQueue.length ? gameState.buzzerQueue : [],
+      }
+
+      setGameState(updatedState)
+      await saveGameState(gameState.gameCode, updatedState)
+    } catch (error) {
+      console.error("Error marking answer wrong:", error)
+    }
+  }
+
+  useEffect(() => {
+    if (!gameState.gameCode) return
+
+    const handleGameUpdate = (updatedState: GameState) => {
+      setGameState((prevState) => {
+        let newView = prevState.currentView
+        
+        if (prevState.currentView === "join" && prevState.selectedTeam && 
+            updatedState.teams.includes(prevState.selectedTeam)) {
+          newView = "game"
+        }
+        
+        if (prevState.currentView === "host") {
+          newView = "host"
+        }
+        
+        return {
+          ...updatedState,
+          currentView: newView,
+          selectedTeam: prevState.selectedTeam,
+        }
+      })
+    }
+
+    const unsubscribe = subscribeToGameUpdates(gameState.gameCode, handleGameUpdate)
+    return unsubscribe
+  }, [gameState.gameCode])
+
+  // Show loading until client renders to prevent hydration mismatch
+  if (!isClient) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center p-4"
-        style={{
-          background: "linear-gradient(135deg, #92400e 0%, #b45309 50%, #92400e 100%)",
-          color: "#fef3c7",
-        }}
-      >
-        <div
-          className="w-full max-w-md rounded-lg p-6 shadow-lg"
-          style={{
-            backgroundColor: "rgba(254, 243, 199, 0.95)",
-            border: "2px solid #fde68a",
-          }}
-        >
-          <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold" style={{ color: "#92400e" }}>
-              Join Black Jeopardy!
-            </h1>
-            <p className="text-sm mt-2" style={{ color: "#a16207" }}>
-              Hosted by Melanated Wellness
-            </p>
-            <Link href="/">
-              <button
-                className="mt-2 px-3 py-1 rounded text-sm"
-                style={{
-                  backgroundColor: "rgba(146, 64, 14, 0.2)",
-                  color: "#a16207",
-                  border: "1px solid #a16207",
-                }}
-              >
-                ← Back to Home
-              </button>
-            </Link>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "#92400e" }}>
-                Game Code
-              </label>
-              <input
-                type="text"
-                value={gameId}
-                onChange={(e) => setGameId(e.target.value.toUpperCase())}
-                placeholder="Enter game code"
-                className="w-full text-lg p-4 rounded-lg"
-                style={{
-                  backgroundColor: "#fffbeb",
-                  border: "2px solid #fde68a",
-                  color: "#92400e",
-                }}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "#92400e" }}>
-                Team Name
-              </label>
-              <input
-                type="text"
-                value={teamName}
-                onChange={(e) => setTeamName(e.target.value)}
-                placeholder="Enter your team name"
-                className="w-full text-lg p-4 rounded-lg"
-                style={{
-                  backgroundColor: "#fffbeb",
-                  border: "2px solid #fde68a",
-                  color: "#92400e",
-                }}
-              />
-            </div>
-
-            <button
-              onClick={joinGame}
-              disabled={!gameId || !teamName}
-              className="w-full font-bold py-4 text-lg rounded-lg transition-colors"
-              style={{
-                backgroundColor: !gameId || !teamName ? "#9ca3af" : "#92400e",
-                color: "#fffbeb",
-                cursor: !gameId || !teamName ? "not-allowed" : "pointer",
-              }}
-            >
-              Join Game
-            </button>
-          </div>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-amber-900 via-yellow-800 to-orange-900 flex items-center justify-center">
+        <div className="text-amber-100 text-xl">Loading...</div>
       </div>
     )
   }
 
-  return (
-    <div
-      className="min-h-screen p-4"
-      style={{
-        background: "linear-gradient(135deg, #92400e 0%, #b45309 50%, #92400e 100%)",
-        color: "#fef3c7",
-      }}
-    >
-      <div className="container mx-auto max-w-4xl">
-        {/* Header */}
-        <div className="text-center mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <Link href="/">
-              <button
-                className="px-3 py-1 rounded text-sm"
-                style={{
-                  backgroundColor: "rgba(254, 243, 199, 0.2)",
-                  color: "#fde68a",
-                  border: "1px solid #fde68a",
-                }}
-              >
-                ← Home
-              </button>
-            </Link>
-            <div className="text-center">
-              <h1 className="text-3xl font-bold mb-1" style={{ color: "#fffbeb" }}>
-                BLACK JEOPARDY!
-              </h1>
-              <p className="text-sm" style={{ color: "#fde68a" }}>
-                Hosted by Melanated Wellness
-              </p>
-            </div>
-            <button
-              onClick={leaveGame}
-              className="px-3 py-1 rounded text-sm"
-              style={{
-                backgroundColor: "#dc2626",
-                color: "#fff",
-              }}
-            >
-              ✕ Leave
-            </button>
-          </div>
+  const handleAdminAccess = () => {
+    if (adminPin === "2424") {
+      setIsAdminAuthenticated(true)
+      setShowPinPrompt(false)
+      setGameState((prev) => ({ ...prev, currentView: "admin" }))
+      setAdminPin("")
+    } else {
+      alert("Incorrect PIN")
+      setAdminPin("")
+    }
+  }
 
-          <div className="flex justify-center gap-4 text-sm">
-            <span
-              className="px-3 py-1 rounded"
-              style={{
-                border: "1px solid #fde68a",
-                backgroundColor: "rgba(146, 64, 14, 0.5)",
-              }}
-            >
-              Game: {gameInfo?.gameId}
-            </span>
-            <span
-              className="px-3 py-1 rounded"
-              style={{
-                border: "1px solid #eab308",
-                backgroundColor: "rgba(161, 98, 7, 0.5)",
-              }}
-            >
-              Team: {gameInfo?.teamName}
-            </span>
-            <span
-              className="px-3 py-1 rounded"
-              style={{
-                border: "1px solid #16a34a",
-                backgroundColor: "rgba(22, 163, 74, 0.5)",
-              }}
-            >
-              Score: ${gameInfo?.score || 0}
-            </span>
-          </div>
-        </div>
-
-        {/* Game Board Preview */}
-        <div
-          className="rounded-lg p-4 mb-6 shadow-lg"
-          style={{
-            backgroundColor: "rgba(254, 243, 199, 0.95)",
-            border: "2px solid #fde68a",
-          }}
-        >
-          <h2 className="text-center text-xl font-bold mb-4" style={{ color: "#92400e" }}>
-            GAME BOARD
-          </h2>
-
-          <div className="overflow-x-auto">
-            <div className="min-w-[320px]">
-              {/* Category Headers */}
-              <div className="grid grid-cols-5 gap-1 mb-2">
-                {Object.keys(questions).map((category) => (
-                  <div
-                    key={category}
-                    className="p-2 text-center font-bold uppercase text-xs"
-                    style={{ backgroundColor: "#92400e", color: "#fffbeb" }}
-                  >
-                    {category}
-                  </div>
-                ))}
-              </div>
-
-              {/* Question Grid */}
-              {[200, 400, 600, 800, 1000].map((value) => (
-                <div key={value} className="grid grid-cols-5 gap-1 mb-1">
-                  {Object.keys(questions).map((category) => (
-                    <div
-                      key={`${category}-${value}`}
-                      className="p-3 text-lg font-bold text-center border"
-                      style={{
-                        backgroundColor: "#fffbeb",
-                        color: "#92400e",
-                        borderColor: "#fde68a",
-                      }}
-                    >
-                      ${value}
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Buzzer */}
-        <div
-          className="text-center rounded-lg p-6 shadow-lg"
-          style={{
-            backgroundColor: "rgba(254, 243, 199, 0.95)",
-            border: "2px solid #fde68a",
-          }}
-        >
-          <button
-            onClick={buzzIn}
-            className="w-32 h-32 rounded-full text-xl font-bold transition-all duration-200"
-            style={{
-              backgroundColor: gameInfo?.buzzedIn ? "#9ca3af" : "#eab308",
-              color: "#fff",
-              boxShadow: "0 4px 8px rgba(0,0,0,0.3)",
-              animation: gameInfo?.buzzedIn ? "none" : "pulse 2s infinite",
-            }}
-          >
-            <div className="flex flex-col items-center">
-              <span className="text-2xl mb-1">🔔</span>
-              <span>BUZZ</span>
-            </div>
-          </button>
-
-          <p className="mt-4" style={{ color: "#a16207" }}>
-            {gameInfo?.buzzedIn ? "You buzzed in! Wait for host." : "Tap the buzzer when you know the answer!"}
+  const HomePage = () => (
+    <div className="min-h-screen bg-gradient-to-br from-amber-900 via-yellow-800 to-orange-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-4xl">
+        <div className="text-center mb-8">
+          <img src="/melanated-wellness-logo.png" alt="Melanated Wellness" className="mx-auto mb-6 h-24 w-auto" />
+          <h1 className="text-3xl md:text-6xl font-bold text-amber-100 mb-4 font-serif">Black Jeopardy</h1>
+          <p className="text-lg md:text-xl text-amber-200 mb-8">
+            Test your knowledge of Black history, culture, and achievements
           </p>
-
-          {gameInfo?.buzzedIn && (
-            <div
-              className="mt-2 px-4 py-2 rounded animate-pulse"
-              style={{
-                backgroundColor: "#dc2626",
-                color: "#fff",
-              }}
-            >
-              YOU BUZZED IN!
-            </div>
-          )}
-
-          <div className="mt-4 text-xs" style={{ color: "#a16207" }}>
-            Game progress is automatically saved
-          </div>
         </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="bg-amber-100 border-amber-300 hover:bg-amber-50 transition-colors">
+            <CardHeader className="text-center">
+              <Users className="mx-auto h-12 w-12 text-amber-800 mb-2" />
+              <CardTitle className="text-amber-900">Host Game</CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+              <p className="text-amber-700 mb-4">Start a new game session and manage questions</p>
+              <Button
+                onClick={startHostGame}
+                className="w-full bg-white text-amber-800 hover:bg-amber-50 border border-amber-300"
+              >
+                Start Hosting
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-amber-100 border-amber-300 hover:bg-amber-50 transition-colors">
+            <CardHeader className="text-center">
+              <Trophy className="mx-auto h-12 w-12 text-amber-800 mb-2" />
+              <CardTitle className="text-amber-900">Join Game</CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+              <p className="text-amber-700 mb-4">Enter a game code to join an existing session</p>
+              <Button
+                onClick={() => setGameState((prev) => ({ ...prev, currentView: "join" }))}
+                className="w-full bg-white text-amber-800 hover:bg-amber-50 border border-amber-300"
+              >
+                Join Game
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-amber-100 border-amber-300 hover:bg-amber-50 transition-colors">
+            <CardHeader className="text-center">
+              <Zap className="mx-auto h-12 w-12 text-amber-800 mb-2" />
+              <CardTitle className="text-amber-900">Admin Panel</CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+              <p className="text-amber-700 mb-4">Manage questions and game settings</p>
+              <Button
+                onClick={() => setShowPinPrompt(true)}
+                className="w-full bg-white text-amber-800 hover:bg-amber-50 border border-amber-300"
+              >
+                Manage Questions
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        {showPinPrompt && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <Card className="w-full max-w-md bg-amber-100">
+              <CardHeader>
+                <CardTitle className="text-amber-900">Admin Access</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Input
+                  type="password"
+                  placeholder="Enter PIN"
+                  value={adminPin}
+                  onChange={(e) => setAdminPin(e.target.value)}
+                  className="bg-white border-amber-300"
+                />
+                <div className="flex gap-2">
+                  <Button onClick={handleAdminAccess} className="flex-1 bg-amber-800 text-white hover:bg-amber-700">
+                    Access
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowPinPrompt(false)
+                      setAdminPin("")
+                    }}
+                    variant="outline"
+                    className="flex-1 border-amber-300 text-amber-800 hover:bg-amber-50"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   )
+
+  // Simplified views - you can expand these as needed
+  const HostView = () => <div>Host View - Implement your host interface here</div>
+  const JoinView = () => <div>Join View - Implement your join interface here</div>  
+  const PlayerGameView = () => <div>Player View - Implement your player interface here</div>
+  const AdminView = () => <div>Admin View - Implement your admin interface here</div>
+
+  if (gameState.currentView === "host") return <HostView />
+  if (gameState.currentView === "join") return <JoinView />
+  if (gameState.currentView === "game") return <PlayerGameView />
+  if (gameState.currentView === "admin") return <AdminView />
+
+  return <HomePage />
 }
