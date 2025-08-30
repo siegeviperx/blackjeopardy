@@ -8,6 +8,7 @@ permissions:
 jobs:
   update-lock:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,22 +20,30 @@ jobs:
         with:
           node-version: '20'
 
-      # Find the project folder by package.json "name"
+      # Find the project dir by matching package.json "name": "black-jeopardy-app"
       - name: Locate project directory
         id: locate
         shell: bash
         run: |
           set -euo pipefail
-          # Search for package.json files and pick the one whose "name" matches your app
+          echo "Searching for package.json named 'black-jeopardy-app'..."
           MAPFILE=()
-          while IFS= read -r -d '' f; do MAPFILE+=("$f"); done < <(git ls-files -- '**/package.json' -z)
-
+          while IFS= read -r -d '' f; do MAPFILE+=("$f"); done < <(git ls-files -z -- '**/package.json')
+          if [ ${#MAPFILE[@]} -eq 0 ]; then
+            echo "No package.json found in repo." >&2
+            exit 1
+          fi
           TARGET=""
           for f in "${MAPFILE[@]}"; do
+            echo "Checking $f"
             if jq -e '.name=="black-jeopardy-app"' "$f" >/dev/null 2>&1; then
               TARGET="$(dirname "$f")"
               break
             fi
           done
-
-          if [ -z "$TARGE]()
+          if [ -z "$TARGET" ]; then
+            echo "Could not find a package.json with name 'black-jeopardy-app'." >&2
+            echo "Candidates were:" >&2
+            printf ' - %s\n' "${MAPFILE[@]}" >&2
+            exit 1
+          fi
