@@ -5,6 +5,9 @@ on:
 permissions:
   contents: write
 
+env:
+  PROJECT_DIR: blackjeopardy   # <— your subfolder
+
 jobs:
   update-lock:
     runs-on: ubuntu-latest
@@ -14,12 +17,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node
+      - name: Setup Node (no cache needed)
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
-          cache-dependency-path: 'pnpm-lock.yaml'
+
+      - name: Debug paths & files
+        run: |
+          echo "pwd = $(pwd)"
+          echo "repo tree (top level):"
+          ls -la
+          echo "---- listing ${PROJECT_DIR} ----"
+          ls -la "${PROJECT_DIR}" || true
+          echo "---- head of package.json ----"
+          head -n 60 "${PROJECT_DIR}/package.json" || true
+          echo "---- head of pnpm-lock.yaml (if exists) ----"
+          head -n 40 "${PROJECT_DIR}/pnpm-lock.yaml" || true
 
       - name: Show tool versions
         run: |
@@ -27,16 +40,17 @@ jobs:
           npm -v
           npx -y pnpm@9 -v
 
-      - name: Install (regenerate lockfile)
+      - name: Regenerate lockfile with pnpm (via npx)
+        working-directory: ${{ env.PROJECT_DIR }}
         run: npx -y pnpm@9 install --no-frozen-lockfile
 
       - name: Commit lockfile if changed
         run: |
-          if ! git diff --quiet pnpm-lock.yaml; then
+          if ! git diff --quiet "${PROJECT_DIR}/pnpm-lock.yaml"; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add pnpm-lock.yaml
-            git commit -m "ci: sync pnpm-lock.yaml with package.json"
+            git add "${PROJECT_DIR}/pnpm-lock.yaml"
+            git commit -m "ci: sync pnpm-lock.yaml with package.json in ${PROJECT_DIR}"
             git push
           else
             echo "No lockfile changes"
