@@ -1,22 +1,42 @@
 name: Update pnpm lockfile
-on: { workflow_dispatch: {} }
-permissions: { contents: write }
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
 jobs:
   update-lock:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          node-version: "20"
-          cache: "pnpm"
-      - uses: pnpm/action-setup@v4
+          fetch-depth: 0
+
+      - name: Setup Node (with Corepack)
+        uses: actions/setup-node@v4
         with:
-          version: 9
-          run_install: false
+          node-version: '20'        # >= 18.17 is fine; 20 is good
+          cache: 'pnpm'
+
+      # EITHER Corepack (recommended if package.json has "packageManager": "pnpm@9.x")
+      - name: Activate pnpm via Corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@9 --activate
+          pnpm -v
+
+      # OR use the official pnpm action (uncomment these 4 lines and delete the Corepack step above)
+      # - name: Setup pnpm
+      #   uses: pnpm/action-setup@v4
+      #   with:
+      #     version: 9
+      #     run_install: false
+
       - name: Install (regenerate lockfile)
         run: pnpm install --no-frozen-lockfile
+
       - name: Commit lockfile if changed
         run: |
           if ! git diff --quiet pnpm-lock.yaml; then
@@ -25,4 +45,6 @@ jobs:
             git add pnpm-lock.yaml
             git commit -m "ci: sync pnpm-lock.yaml with package.json"
             git push
+          else
+            echo "No lockfile changes"
           fi
