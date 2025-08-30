@@ -1,15 +1,14 @@
 name: Update pnpm lockfile
 
 on:
-  workflow_dispatch: {}   # run manually from Actions tab
+  workflow_dispatch: {}
 
 permissions:
-  contents: write         # allow the workflow to push the updated lockfile
+  contents: write
 
 jobs:
   update-lock:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,20 +18,18 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'   # Node >= 18.17 ok; 20 is a safe default
-          cache: 'pnpm'        # enables pnpm cache on the runner
+          node-version: '20'
+          cache: 'pnpm'
 
-      - name: Enable Corepack & activate pnpm (from packageManager)
+      # Explicitly install pnpm if not present
+      - name: Ensure pnpm is available
         run: |
           corepack enable
-          # Use exact version from package.json's "packageManager"
-          PKG_PM=$(node -p "require('./package.json').packageManager || ''")
-          if [ -z "$PKG_PM" ]; then
-            echo 'packageManager field missing in package.json'; exit 1
+          corepack prepare pnpm@9.0.0 --activate || true
+          if ! command -v pnpm >/dev/null; then
+            echo "pnpm not found via corepack, installing globally..."
+            npm install -g pnpm@9
           fi
-          echo "packageManager=$PKG_PM"
-          # e.g. "pnpm@9.0.0"
-          corepack prepare "$PKG_PM" --activate
           pnpm -v
 
       - name: Install (regenerate lockfile)
