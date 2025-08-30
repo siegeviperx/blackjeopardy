@@ -22,6 +22,10 @@ export const questions = {
         answer: "What is the 13th Amendment?",
       },
       {
+        question: "This conductor of the Underground Railroad was known as 'Moses' and made 19 trips to the South.",
+        answer: "Who is Harriet Tubman?",
+      },
+      {
         question: "This organization was founded by W.E.B. Du Bois and others in Niagara Falls in 1905.",
         answer: "What is the Niagara Movement?",
       },
@@ -286,8 +290,8 @@ export const questions = {
         answer: "Who is Zora Neale Hurston?",
       },
       {
-        question: "This entrepreneur became the first Black woman billionaire through her cosmetics company.",
-        answer: "Who is Oprah Winfrey?",
+        question: "This businesswoman became America's first self-made female millionaire through her hair care products.",
+        answer: "Who is Madam C.J. Walker?",
       },
       {
         question:
@@ -388,6 +392,10 @@ export const questions = {
         answer: "Who is Tiger Woods?",
       },
       {
+        question: "This boxer was known as 'The Greatest' and converted to Islam during his career.",
+        answer: "Who is Muhammad Ali?",
+      },
+      {
         question: "This tennis player won 39 Grand Slam titles, including 23 singles titles.",
         answer: "Who is Serena Williams?",
       },
@@ -446,8 +454,8 @@ export const questions = {
         answer: "Who is Hakeem Olajuwon?",
       },
       {
-        question: "This swimmer won multiple Olympic medals and broke barriers in swimming.",
-        answer: "Who is Cullen Jones?",
+        question: "This swimmer became the first African American to win an Olympic gold medal in swimming.",
+        answer: "Who is Anthony Ervin?",
       },
       {
         question: "This baseball player was known as 'Hammerin' Hank' and broke Babe Ruth's home run record.",
@@ -458,6 +466,10 @@ export const questions = {
       {
         question: "This boxer was known as 'The Greatest' and 'The Louisville Lip.'",
         answer: "Who is Muhammad Ali?",
+      },
+      {
+        question: "This tennis player won 23 Grand Slam singles titles, the most in the Open Era.",
+        answer: "Who is Serena Williams?",
       },
       {
         question: "This sprinter set world records in the 100m and 200m at the 1988 Olympics.",
@@ -490,6 +502,10 @@ export const questions = {
         answer: "Who is Jesse Owens?",
       },
       {
+        question: "This baseball player known as the 'Say Hey Kid' hit 660 home runs and made legendary catches in center field.",
+        answer: "Who is Willie Mays?",
+      },
+      {
         question: "This boxer defeated Muhammad Ali twice and was known for his devastating left hook.",
         answer: "Who is Joe Frazier?",
       },
@@ -512,6 +528,10 @@ export const questions = {
       },
     ],
     1000: [
+      {
+        question: "This baseball player broke the color barrier in Major League Baseball in 1947.",
+        answer: "Who is Jackie Robinson?",
+      },
       {
         question:
           "This jockey won the first Kentucky Derby in 1875 and was one of 13 Black jockeys to win the race in its first 28 runnings.",
@@ -539,6 +559,10 @@ export const questions = {
     200: [
       {
         question: "This 2018 Marvel superhero film was set in the fictional nation of Wakanda.",
+        answer: "What is Black Panther?",
+      },
+      {
+        question: "This 2018 Marvel film featured the fictional African nation of Wakanda.",
         answer: "What is Black Panther?",
       },
       {
@@ -612,7 +636,7 @@ export const questions = {
         answer: "Who is Will Smith?",
       },
       {
-        question: "This actress played Viola Davis in 'How to Get Away with Murder.'",
+        question: "This actress starred as Annalise Keating in 'How to Get Away with Murder.'",
         answer: "Who is Viola Davis?",
       },
     ],
@@ -623,6 +647,11 @@ export const questions = {
       },
       {
         question: "This 1991 film directed by John Singleton depicted life in South Central Los Angeles.",
+        answer: "What is Boyz n the Hood?",
+      },
+      {
+        question:
+          "This 1991 film directed by John Singleton was the first to earn an Oscar nomination for a Black director.",
         answer: "What is Boyz n the Hood?",
       },
       {
@@ -660,6 +689,10 @@ export const questions = {
         question:
           "This 2020 posthumously released film starring Chadwick Boseman earned him an Academy Award nomination for Best Actor.",
         answer: "What is Ma Rainey's Black Bottom?",
+      },
+      {
+        question: "This 1996 film starring Jada Pinkett Smith, Queen Latifah, Vivica Fox, and Kimberly Elise follows four friends who rob banks.",
+        answer: "What is Set It Off?",
       },
       {
         question: "This director created 'She's Gotta Have It' and founded 40 Acres and a Mule Filmworks.",
@@ -713,20 +746,12 @@ export const questions = {
         answer: "Who is Aretha Franklin?",
       },
       {
-        question: "This singer was known as the 'Godfather of Soul' and 'Mr. Dynamite.'",
-        answer: "Who is James Brown?",
+        question: "This jazz vocalist was known as 'Lady Day' and sang 'Strange Fruit.'",
+        answer: "Who is Billie Holiday?",
       },
       {
-        question: "This jazz trumpet player was known as 'Pops' and 'Satchmo.'",
-        answer: "Who is Louis Armstrong?",
-      },
-      {
-        question: "This singer won 28 Grammy Awards, the most by any artist.",
-        answer: "Who is Beyoncé?",
-      },
-      {
-        question: "This rapper's album 'The Chronic' helped popularize West Coast hip-hop.",
-        answer: "Who is Dr. Dre?",
+        question: "This singer was known as the 'Queen of Soul.'",
+        answer: "Who is Aretha Franklin?",
       },
       {
         question: "This guitarist was known for playing his instrument left-handed and upside down.",
@@ -749,6 +774,10 @@ export const questions = {
       {
         question: 'This jazz musician was known as "Satchmo" and popularized scat singing.',
         answer: "Who is Louis Armstrong?",
+      },
+      {
+        question: "This R&B singer was known as 'The Hardest Working Man in Show Business' and 'Soul Brother #1.'",
+        answer: "Who is James Brown?",
       },
       {
         question: "This singer was known as the 'Empress of the Blues' and influenced many later artists.",
@@ -783,6 +812,10 @@ export const questions = {
       {
         question: "This record label founded by Berry Gordy Jr. was known as 'Hitsville U.S.A.'",
         answer: "What is Motown?",
+      },
+      {
+        question: "This Motown record label was founded by Berry Gordy Jr. in Detroit.",
+        answer: "What is Motown Records?",
       },
       {
         question: "This jazz pianist composed 'Round Midnight' and 'Straight, No Chaser.'",
@@ -831,9 +864,8 @@ export const questions = {
         answer: "Who is Ella Fitzgerald?",
       },
       {
-        question:
-          "This drummer led a big band and was known for his flamboyant style and hits like 'Sing, Sing, Sing.'",
-        answer: "Who is Gene Krupa?",
+        question: "This jazz pianist and bandleader was known as 'The Count' and led one of the most famous big bands.",
+        answer: "Who is Count Basie?",
       },
       {
         question: "This blues musician was known as the 'King of the Delta Blues' and influenced rock music.",
@@ -862,8 +894,8 @@ export const questions = {
         answer: "Who is Ma Rainey?",
       },
       {
-        question: "This composer wrote the opera 'Porgy and Bess' featuring African American characters.",
-        answer: "Who is George Gershwin?",
+        question: "This composer is known as the 'Father of the Blues' and wrote 'St. Louis Blues.'",
+        answer: "Who is W.C. Handy?",
       },
     ],
   },
@@ -962,4 +994,20 @@ export function getRandomQuestion(category: string, points: number) {
   return pointQuestions[randomIndex]
 }
 
-export default questions
+export default questions was known as the 'Godfather of Soul' and 'Mr. Dynamite.'",
+        answer: "Who is James Brown?",
+      },
+      {
+        question: "This jazz trumpet player was known as 'Pops' and 'Satchmo.'",
+        answer: "Who is Louis Armstrong?",
+      },
+      {
+        question: "This singer won 28 Grammy Awards, the most by any artist.",
+        answer: "Who is Beyoncé?",
+      },
+      {
+        question: "This rapper's album 'The Chronic' helped popularize West Coast hip-hop.",
+        answer: "Who is Dr. Dre?",
+      },
+      {
+        question: "This singer
