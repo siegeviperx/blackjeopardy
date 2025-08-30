@@ -998,32 +998,4 @@ export function getRandomQuestion(category: string, points: number) {
 }
 
 \
-export default questions
-was
-known as the
-'Godfather of Soul\' and \'Mr. Dynamite.\'",
-        answer: "Who is James Brown?",
-      },
-{
-  question: "This jazz trumpet player was known as 'Pops' and 'Satchmo.'",
-\
-  answer: "Who is Louis Armstrong?",
-\
-}
-,
-{
-  question: "This singer won 28 Grammy Awards, the most by any artist.",
-\
-  answer: "Who is Beyoncé?",
-\
-}
-,
-{
-  question: "This rapper's album 'The Chronic' helped popularize West Coast hip-hop.",
-\
-  answer: "Who is Dr. Dre?",
-\
-}
-,
-{
-        question: \"This singer
+export default questions;
