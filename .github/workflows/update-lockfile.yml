@@ -18,7 +18,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'   # cache npm, since we're using npx
+          cache: 'pnpm'
+          cache-dependency-path: 'pnpm-lock.yaml'
 
       - name: Show tool versions
         run: |
@@ -26,7 +27,6 @@ jobs:
           npm -v
           npx -y pnpm@9 -v
 
-      # Use npx to run pnpm without installing it globally
       - name: Install (regenerate lockfile)
         run: npx -y pnpm@9 install --no-frozen-lockfile
 
