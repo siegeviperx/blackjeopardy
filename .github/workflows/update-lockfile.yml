@@ -1,6 +1,7 @@
 name: Update pnpm lockfile
+
 on:
-  workflow_dispatch: {}
+  workflow_dispatch: {}   # run manually from the Actions tab
 
 permissions:
   contents: write
@@ -8,7 +9,6 @@ permissions:
 jobs:
   update-lock:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,32 +18,25 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
 
-      # Find the project dir by matching package.json "name": "black-jeopardy-app"
-      - name: Locate project directory
-        id: locate
-        shell: bash
+      - name: Show versions
         run: |
-          set -euo pipefail
-          echo "Searching for package.json named 'black-jeopardy-app'..."
-          MAPFILE=()
-          while IFS= read -r -d '' f; do MAPFILE+=("$f"); done < <(git ls-files -z -- '**/package.json')
-          if [ ${#MAPFILE[@]} -eq 0 ]; then
-            echo "No package.json found in repo." >&2
-            exit 1
-          fi
-          TARGET=""
-          for f in "${MAPFILE[@]}"; do
-            echo "Checking $f"
-            if jq -e '.name=="black-jeopardy-app"' "$f" >/dev/null 2>&1; then
-              TARGET="$(dirname "$f")"
-              break
-            fi
-          done
-          if [ -z "$TARGET" ]; then
-            echo "Could not find a package.json with name 'black-jeopardy-app'." >&2
-            echo "Candidates were:" >&2
-            printf ' - %s\n' "${MAPFILE[@]}" >&2
-            exit 1
+          node -v
+          npm -v
+          npx -y pnpm@9 -v
+
+      - name: Regenerate pnpm lockfile
+        run: npx -y pnpm@9 install --no-frozen-lockfile
+
+      - name: Commit updated lockfile
+        run: |
+          if ! git diff --quiet pnpm-lock.yaml; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add pnpm-lock.yaml
+            git commit -m "ci: update pnpm-lock.yaml"
+            git push
+          else
+            echo "No changes to lockfile"
           fi
