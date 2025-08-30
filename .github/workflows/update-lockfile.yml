@@ -14,36 +14,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Install Node first
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
+          cache: 'npm'   # cache npm, since we're using npx
 
-      # Install pnpm as a standalone binary and add it to PATH
-      - name: Setup pnpm (standalone binary)
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-          standalone: true       # <— this makes pnpm available even if Corepack/paths are weird
-          run_install: false
-
-      # Sanity check: prove pnpm is on PATH
-      - name: Verify pnpm availability
-        shell: bash
+      - name: Show tool versions
         run: |
-          which pnpm || (echo "pnpm not on PATH" && exit 1)
-          pnpm -v
+          node -v
+          npm -v
+          npx -y pnpm@9 -v
 
-      # Regenerate the lockfile
+      # Use npx to run pnpm without installing it globally
       - name: Install (regenerate lockfile)
-        shell: bash
-        run: pnpm install --no-frozen-lockfile
+        run: npx -y pnpm@9 install --no-frozen-lockfile
 
-      # Commit if changed
       - name: Commit lockfile if changed
-        shell: bash
         run: |
           if ! git diff --quiet pnpm-lock.yaml; then
             git config user.name "github-actions[bot]"
