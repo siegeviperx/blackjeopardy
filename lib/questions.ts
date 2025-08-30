@@ -290,7 +290,8 @@ export const questions = {
         answer: "Who is Zora Neale Hurston?",
       },
       {
-        question: "This businesswoman became America's first self-made female millionaire through her hair care products.",
+        question:
+          "This businesswoman became America's first self-made female millionaire through her hair care products.",
         answer: "Who is Madam C.J. Walker?",
       },
       {
@@ -502,7 +503,8 @@ export const questions = {
         answer: "Who is Jesse Owens?",
       },
       {
-        question: "This baseball player known as the 'Say Hey Kid' hit 660 home runs and made legendary catches in center field.",
+        question:
+          "This baseball player known as the 'Say Hey Kid' hit 660 home runs and made legendary catches in center field.",
         answer: "Who is Willie Mays?",
       },
       {
@@ -691,7 +693,8 @@ export const questions = {
         answer: "What is Ma Rainey's Black Bottom?",
       },
       {
-        question: "This 1996 film starring Jada Pinkett Smith, Queen Latifah, Vivica Fox, and Kimberly Elise follows four friends who rob banks.",
+        question:
+          "This 1996 film starring Jada Pinkett Smith, Queen Latifah, Vivica Fox, and Kimberly Elise follows four friends who rob banks.",
         answer: "What is Set It Off?",
       },
       {
@@ -994,20 +997,33 @@ export function getRandomQuestion(category: string, points: number) {
   return pointQuestions[randomIndex]
 }
 
-export default questions was known as the 'Godfather of Soul' and 'Mr. Dynamite.'",
+\
+export default questions
+was
+known as the
+'Godfather of Soul\' and \'Mr. Dynamite.\'",
         answer: "Who is James Brown?",
       },
-      {
-        question: "This jazz trumpet player was known as 'Pops' and 'Satchmo.'",
-        answer: "Who is Louis Armstrong?",
-      },
-      {
-        question: "This singer won 28 Grammy Awards, the most by any artist.",
-        answer: "Who is Beyoncé?",
-      },
-      {
-        question: "This rapper's album 'The Chronic' helped popularize West Coast hip-hop.",
-        answer: "Who is Dr. Dre?",
-      },
-      {
-        question: "This singer
+{
+  question: "This jazz trumpet player was known as 'Pops' and 'Satchmo.'",
+\
+  answer: "Who is Louis Armstrong?",
+\
+}
+,
+{
+  question: "This singer won 28 Grammy Awards, the most by any artist.",
+\
+  answer: "Who is Beyoncé?",
+\
+}
+,
+{
+  question: "This rapper's album 'The Chronic' helped popularize West Coast hip-hop.",
+\
+  answer: "Who is Dr. Dre?",
+\
+}
+,
+{
+        question: \"This singer
