@@ -1,5 +1,4 @@
 name: Update pnpm lockfile
-
 on:
   workflow_dispatch: {}
 
@@ -15,27 +14,36 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Install Node first
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'pnpm'
 
-      # Explicitly install pnpm if not present
-      - name: Ensure pnpm is available
+      # Install pnpm as a standalone binary and add it to PATH
+      - name: Setup pnpm (standalone binary)
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          standalone: true       # <— this makes pnpm available even if Corepack/paths are weird
+          run_install: false
+
+      # Sanity check: prove pnpm is on PATH
+      - name: Verify pnpm availability
+        shell: bash
         run: |
-          corepack enable
-          corepack prepare pnpm@9.0.0 --activate || true
-          if ! command -v pnpm >/dev/null; then
-            echo "pnpm not found via corepack, installing globally..."
-            npm install -g pnpm@9
-          fi
+          which pnpm || (echo "pnpm not on PATH" && exit 1)
           pnpm -v
 
+      # Regenerate the lockfile
       - name: Install (regenerate lockfile)
+        shell: bash
         run: pnpm install --no-frozen-lockfile
 
+      # Commit if changed
       - name: Commit lockfile if changed
+        shell: bash
         run: |
           if ! git diff --quiet pnpm-lock.yaml; then
             git config user.name "github-actions[bot]"
